@@ -1,0 +1,1 @@
+{'theorySellExecuted': 12623000.0, 'theoryBuyExecuted': 12150000.07, 'last_volume_traded_fee': 4.4139999999999994e-05}
