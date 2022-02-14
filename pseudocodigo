@@ -1,3 +1,16 @@
+#_____TABLAS
+# 1: SUMMARY TABLE QUE RECOPILA
+# A) SALDOS DE CADA CRYPTO + FIAT
+# B) PRECIO CRYPTO EN FIAT DIADA
+# C) FECHA SIMULACIÓN
+# D) SIMULACIÓN FIAT A USD + SIMULACIÓN CRYPTO A USD
+# E) GUARDAR REGISTRO SEGREGADO POR DIADA
+# F) UTILIDAD ACUMULADA POR MERCADO
+
+# 2: TRADING BOOK AÑADIR
+# A) UTILIDAD ACUMULADA (OPERACIONAL)
+
+
 #_____FUNCIONES
 # 0: ACTUALIZO BASE DE DATOS + BALANCEO + ACTUALIZAR FIAT + CRYPTO DISPONIBLES
 # 1: ACTUALIZAR ORDENES EXISTENTES + CANCELO TODO SI TENGO ORDENES + BALANCEO
@@ -5,12 +18,10 @@
 # 3: COLOCA POSICION ASK + PRECIO ASK + DETALLE TRANSACCION ASK + ID TRANSACCION + TESTIGO DE QUE TENGO ORDEN ASK
 # 4: COLOCA POSICION BID + PRECIO BID + DETALLE TRANSACCION BID + ID TRANSACCION + TESTIGO DE QUE TENGO ORDEN BID
 # 5: ACTUALIZAR DETALLE TRANSACCION ASK + TRUE SI EJECUTARON + FALSE SI NO EJECUTARON
-# 6: [#10] + SUBO DATOS DE TRANSACCION ASK A BIGQUERY
-# 7: ACTUALIZAR DETALLE TRANSACCION BID + TRUE SI EJECUTARON + FALSE SI NO EJECUTARON
-# 8: [#11] + SUBO DATOS DE TRANSACCION BID A BIGQUERY
+# 6: ACTUALIZAR DETALLE TRANSACCION BID + TRUE SI EJECUTARON + FALSE SI NO EJECUTARON
+# 7: CANCELO TRANSACCION ASK + SUBO DATOS DE TRANSACCION ASK A BIGQUERY
+# 8: CANCELO TRANSACCION BID + SUBO DATOS DE TRANSACCION BID A BIGQUERY
 # 9: ACTUALIZAR SALDO DE FIAT + SALDO DE CRYPTO
-# 10:CANCELO TRANSACCION ASK
-# 11:CANCELO TRANSACCION BID
 
 #_____VARIABLES
 # A: VALOR QUE ME DICE CUANTO ME DEBO ALEJAR DEL SPREAD ($)
@@ -66,7 +77,7 @@
 
                               #_____SI YA NO SOY LA ORDEN PUNTA ASK
 
-                                #_____CANCELAR ASK # 10
+                                #_____CANCELAR ASK # 6
 
                                 #_____ACTUALIZAR LIBRO DE ORDENES # 2
 
@@ -88,7 +99,7 @@
 
                                 #_____NO SOY LA MAYOR PROPORCION
 
-                                  #_____CANCELAR ASK # 10
+                                  #_____CANCELAR ASK # 6
 
                                   #_____ACTUALIZAR LIBRO DE ORDENES # 2
 
@@ -112,7 +123,7 @@
 
                               #_____ELIF SOY LA PUNTA PERO ESTOY CERRANDO INNECESARIAMENTE EL SPREAD
 
-                                #_____CANCELAR ASK # 10
+                                #_____CANCELAR ASK # 6
 
                                 #_____ACTUALIZAR LIBRO DE ORDENES # 2
 
@@ -154,7 +165,7 @@
 
                       #_____SI ME EJECUTARON BID # 7
 
-                        #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 8
+                        #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 6
 
                         #_____BALANCEO DE ASK BID + ACTUALIZAR FIAT + CRYPTO DISPONIBLES # 0
 
@@ -262,7 +273,7 @@
 
                           #_____CANCELAR + GUARDAR DATOS DE TRANSACCION ASK # 6
 
-                          #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 8
+                          #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 6
 
                           #_____SALIR DEL LOOP DE EJECUCION
 
@@ -276,9 +287,9 @@
 
                         #_____ELIF (NO ME EJECUTARON ASK # 5) Y (SI ME EJECUTARON BID # 7)
 
-                        #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 8
+                        #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 6
 
-                        #_____CANCELAR ASK # 10
+                        #_____CANCELAR ASK # 6
 
                         #_____SALIR DEL LOOP DE EJECUCION
 
@@ -296,7 +307,7 @@
 
                           #_____CANCELAR BID # 11
 
-                          #_____CANCELAR ASK # 10
+                          #_____CANCELAR ASK # 6
 
                           #_____SALIR DEL LOOP DE EJECUCION
 
@@ -308,7 +319,7 @@
 
                             #_____CANCELAR BID # 11
 
-                            #_____CANCELAR ASK # 10
+                            #_____CANCELAR ASK # 6
 
                             #_____SALIR DEL LOOP DE EJECUCION
 
@@ -318,7 +329,7 @@
 
                             #_____CANCELAR BID # 11
 
-                            #_____CANCELAR ASK # 10
+                            #_____CANCELAR ASK # 6
 
                             #_____SALIR DEL LOOP DE EJECUCION
 
@@ -328,7 +339,7 @@
 
                           #_____CANCELAR BID # 11
 
-                          #_____CANCELAR ASK # 10
+                          #_____CANCELAR ASK # 6
 
                           #_____SALIR DEL LOOP DE EJECUCION
 
@@ -336,7 +347,7 @@
 
                           #_____CANCELAR BID # 11
 
-                          #_____CANCELAR ASK # 10
+                          #_____CANCELAR ASK # 6
 
                           #_____SALIR DEL LOOP DE EJECUCION
 
