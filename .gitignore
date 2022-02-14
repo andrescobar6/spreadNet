@@ -2,3 +2,4 @@
 *.ini
 *.json
 *checkpoint.ipynb
+.ipynb_checkpoints
