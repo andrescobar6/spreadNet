@@ -146,6 +146,19 @@ def getMONinAccount():
 
     return balance.amount.amount
 
+def getFiatUsdQuote(fiat):
+
+# ACTUALIZA TAZA DE CAMBIO DE MERCADOS A USD
+def getFiatUsdQuote(fiat):
+    
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_or_name="marketmaker")
+    fiatQuotes=bucket.get_blob(blob_name="fiatQuotes.txt")
+    fiatQuotes=fiatQuotes.download_as_string()
+    fiatQuotes=pd.DataFrame(ast.literal_eval(fiatQuotes.decode("utf-8")))
+    return float(fiatQuotes.loc[fiatQuotes.MARKET == "USD"+fiat.upper()].QUOTES[0])
+
 # ACTUALIZA EL BALANCE DE ASKS Y BIDS EJECUTADOS
 def updatePast_Asks_Bids():
     
@@ -307,6 +320,11 @@ def write_buy_sell_prices():
                                 "theoryBuyExecuted": theoryBuyExecuted,
                                 "last_volume_traded_fee":last_volume_traded_fee}
 
+    #_____CREAR CONEXIÓN CON GOOGLE CLOUD
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="gcp_json.json"
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(bucket_or_name="marketmaker")
+    
     #_____UPLOAD FILE
     blob=bucket.blob("last_buy_sell_prices_dic_"+CRYPT+"_"+MONEY+".txt")
     blob.upload_from_string(data=str(last_buy_sell_prices_dic))
@@ -333,6 +351,7 @@ def finishThemAll():
     global last_volume_traded_fee
     global database_past_asks_bids
 
+    #_____PARAMETERS
     askPendings=0
     bidPendings=0
 
@@ -345,20 +364,24 @@ def finishThemAll():
     Market = client_surbtc.getMarket(CRYPT+"-"+MONEY)
     data=pd.DataFrame(Market.getPendingOrders())
     
+    #_____SI TENGO ÓRDENES
     if len(data)>0:
     
         askPendings=len(data.loc[((data.state=="pending") | (data.state=="accepted")) & (data.type=="Ask")])
         bidPendings=len(data.loc[((data.state=="pending") | (data.state=="accepted")) & (data.type=="Bid")])
 
+        #_____SI TENGO ÓRDENES EJECUTADAS PARCIAL O TOTALMENTE
         if (askPendings>0) or (bidPendings>0):
 
             askIdList=list(data.loc[((data.state=="pending") | (data.state=="accepted")) & (data.type=="Ask")].id.values)
             bidIdList=list(data.loc[((data.state=="pending") | (data.state=="accepted")) & (data.type=="Bid")].id.values)
 
+            #_____SI TENGO ASKS PENDIENTES
             if len(askIdList)>0:
 
                 for i in askIdList:
                     
+                    #_____ACTUALIZAR DETALLES DE ÓRDENES
                     while True:
                         try:
                             askOrderDetailsFinish = client.order_details(i)
@@ -367,11 +390,12 @@ def finishThemAll():
                             print("[ERROR]: finishThemAll() -> askOrderDetailsFinish = client.order_details(i)")
                             time.sleep(sleepError)
 
+                    #_____SI EJECUTÉ PARCIAL O TOTALEMTNE LA ÓRDEN -> GUARDAR PRECIOS
                     if (askOrderDetailsFinish.traded_amount.amount > 0.0):
-                        testigoBigQuery=1
                         theorySellExecuted=theorySellPrice
                         write_buy_sell_prices()
                     
+                    #_____ITERAR HASTA QUE SE CANCELE LA ORDEN
                     while True:
                         try:
                             client.cancel_order(i)
@@ -380,6 +404,7 @@ def finishThemAll():
                             print("[ERROR]: finishThemAll() -> client.cancel_order(i)")
                             time.sleep(sleepError)
 
+                    #_____ITERAR HASTA QUE SE ACTUALICE EL ESTADO DE LA ORDEN
                     while(True):
 
                         while True:
@@ -390,6 +415,7 @@ def finishThemAll():
                                 print("[ERROR]: finishThemAll() -> askOrderDetailsFinish = client.order_details(i)(1)")
                                 time.sleep(sleepError)
 
+                        #_____SI LA ORDEN YA SE ENCUENTRA CANCELADA -> SALIR DEL LOOP
                         if (askOrderDetailsFinish.state=="canceled") or (askOrderDetailsFinish.state=="traded"):
                             break
                         else:
@@ -402,89 +428,133 @@ def finishThemAll():
                                     time.sleep(sleepError)
 
                     
-                    if testigoBigQuery==1:
 
-                        #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-                        bigquery_client=bigquery.Client(project="dogwood-terra-308100")
-                        dataset_ref=bigquery_client.dataset("spreadNet")
-                        table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
-                        table=dataset_ref.table(CRYPT+"_"+MONEY)
-                        table=bigquery.Table(table)
+                    #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
+                    bigquery_client=bigquery.Client(project="dogwood-terra-308100")
+                    dataset_ref=bigquery_client.dataset("spreadNet")
+                    table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
+                    table=dataset_ref.table(CRYPT+"_"+MONEY)
+                    table=bigquery.Table(table)
 
-                        #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
-                        rows_candle_list=list(np.arange(0,len(utilityTimeDataFrame_GoolgeCloud),10000))
+                    #_____ASIGNAR COLUMNAS A BASE DE DATOS DE LA ORDEN CANCELADA
+                    columns=["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE","JSON"]
+                    append_order_dataframe=pd.DataFrame(columns=columns)
 
-                        for i in range(len(rows_candle_list)):
-                            try:
-                                bigquery_client.insert_rows(bigquery_client.get_table(table_ref), utilityTimeDataFrame_GoolgeCloud[rows_candle_list[i]:rows_candle_list[i+1]].values.tolist())
-                            except:
-                                bigquery_client.insert_rows(bigquery_client.get_table(table_ref), utilityTimeDataFrame_GoolgeCloud[rows_candle_list[i]:].values.tolist())
+                    #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
+                    order_dataframe=pd.DataFrame(askOrderDetailsFinish[14]).head(1)
+                    append_order_dataframe=append_order_dataframe.append(order_dataframe,sort=False)
 
+                    #_____QUITAR COLUMNAS INNECESARIAS
+                    append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
 
+                    #_____AGREGAR COLUMNAS FALTANTES
+                    append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
+                    append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
+                    append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
+                    append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
+                    append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                    append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                    append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
+                    append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"]/append_order_dataframe.at[0,"MY_TRM"]
+                    append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
+                    if append_order_dataframe.at[0,"TYPE"]=="Ask":
+                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                    else:
+                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                    append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
 
+                    #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
+                    bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
 
-                        testigoBigQuery=0
+            #_____SI TENGO BIDS PENDIENTES
+            if len(bidIdList)>0:
+
+                for i in bidIdList:
                     
-            if len(bidIdList)>=1:
-
-                for j in bidIdList:
-
-                    time.sleep(sleepApi)
+                    #_____ACTUALIZAR DETALLES DE ÓRDENES
                     while True:
                         try:
-                            bidOrderDetailsFinish = client.order_details(j)
+                            bidOrderDetailsFinish = client.order_details(i)
                             break
                         except:
+                            print("[ERROR]: finishThemAll() -> bidOrderDetailsFinish = client.order_details(i)")
                             time.sleep(sleepError)
-                            #printOutput(f'client error sleepApiing {sleepError} seconds')
+
+                    #_____SI EJECUTÉ PARCIAL O TOTALEMTNE LA ÓRDEN -> GUARDAR PRECIOS
                     if (bidOrderDetailsFinish.traded_amount.amount > 0.0):
-                        theoryBuyExecuted=theoryBuyPrice
-                        last_volume_traded_fee=float(bidOrderDetailsFinish.paid_fee[0])+last_volume_traded_fee
-                        createMarketBidFee()
+                        theorySellExecuted=theorySellPrice
                         write_buy_sell_prices()
-                    time.sleep(sleepApi)
+                    
+                    #_____ITERAR HASTA QUE SE CANCELE LA ORDEN
                     while True:
                         try:
-                            client.cancel_order(j)
+                            client.cancel_order(i)
                             break
                         except:
+                            print("[ERROR]: finishThemAll() -> client.cancel_order(i)")
                             time.sleep(sleepError)
-                            #printOutput(f'client error sleepApiing {sleepError} seconds')
+
+                    #_____ITERAR HASTA QUE SE ACTUALICE EL ESTADO DE LA ORDEN
                     while(True):
-                        time.sleep(sleepApi)
+
                         while True:
                             try:
-                                bidOrderDetailsFinish = client.order_details(j)
+                                bidOrderDetailsFinish = client.order_details(i)
                                 break
                             except:
+                                print("[ERROR]: finishThemAll() -> bidOrderDetailsFinish = client.order_details(i)(1)")
                                 time.sleep(sleepError)
-                                #printOutput(f'client error sleepApiing {sleepError} seconds')
+
+                        #_____SI LA ORDEN YA SE ENCUENTRA CANCELADA -> SALIR DEL LOOP
                         if (bidOrderDetailsFinish.state=="canceled") or (bidOrderDetailsFinish.state=="traded"):
                             break
                         else:
-                            time.sleep(sleepApi/2)
                             while True:
                                 try:
-                                    client.cancel_order(j)
+                                    client.cancel_order(i)
                                     break
                                 except:
+                                    print("[ERROR]: finishThemAll() -> bidOrderDetailsFinish = client.cancel_order(i)(2)")
                                     time.sleep(sleepError)
-                                    #printOutput(f'client error sleepApiing {sleepError} seconds')
 
-                    pickle_in = open("database_past_asks_bids_"+MONEY+"_"+CRYPT+".pickle","rb")
-                    database_past_asks_bids= pickle.load(pickle_in)
+                    
 
-                    columns=["id","account_id","amount","created_at","fee_currency","limit","market_id","original_amount","paid_fee","price_type","state","total_exchanged","traded_amount","type","json"]
-                    appen_order_dataframe=pd.DataFrame(columns=columns)
+                    #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
+                    bigquery_client=bigquery.Client(project="dogwood-terra-308100")
+                    dataset_ref=bigquery_client.dataset("spreadNet")
+                    table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
+                    table=dataset_ref.table(CRYPT+"_"+MONEY)
+                    table=bigquery.Table(table)
+
+                    #_____ASIGNAR COLUMNAS A BASE DE DATOS DE LA ORDEN CANCELADA
+                    columns=["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE","JSON"]
+                    append_order_dataframe=pd.DataFrame(columns=columns)
+
+                    #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
                     order_dataframe=pd.DataFrame(bidOrderDetailsFinish[14]).head(1)
-                    appen_order_dataframe=appen_order_dataframe.append(order_dataframe,sort=False)
-                    database_past_asks_bids=database_past_asks_bids.append(appen_order_dataframe,sort=False)
-                    database_past_asks_bids.drop_duplicates(subset=["id"],inplace=True)
-                    database_past_asks_bids.reset_index(drop=True,inplace=True)
+                    append_order_dataframe=append_order_dataframe.append(order_dataframe,sort=False)
 
-                    pickle_out = open("database_past_asks_bids_"+MONEY+"_"+CRYPT+".pickle","wb")
-                    pickle.dump(database_past_asks_bids, pickle_out)
-                    pickle_out.close()
+                    #_____QUITAR COLUMNAS INNECESARIAS
+                    append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
+
+                    #_____AGREGAR COLUMNAS FALTANTES
+                    append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
+                    append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
+                    append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
+                    append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
+                    append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                    append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                    append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
+                    append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"]/append_order_dataframe.at[0,"MY_TRM"]
+                    append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
+                    if append_order_dataframe.at[0,"TYPE"]=="Bid":
+                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                    else:
+                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                    append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+
+                    #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
+                    bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
 
         balancing_Ask_Bid()
 
