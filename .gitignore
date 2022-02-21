@@ -1,5 +1,6 @@
 *.env
 *.ini
+*.xlsx
 *.json
 *checkpoint.ipynb
 .ipynb_checkpoints
