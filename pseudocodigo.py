@@ -41,6 +41,7 @@ from dotenv import load_dotenv
 from google.cloud import storage
 
 #_____LOOP INFINITO
+
 while(True):
     gotOrder = False
     #_____LOOP PRIMERA ITERACION
@@ -386,3 +387,327 @@ while(True):
         #_____SI NO TENGO SPREAD
 
             #_____ESPERAR
+=======
+
+    #_____LOOP PRIMERA ITERACION
+
+        #_____CANCELAR CUALQUIER TIPO DE ORDEN EXISTENTE # 1
+
+        #_____BALANCEO DE ASK BID + ACTUALIZAR FIAT + CRYPTO DISPONIBLES # 0
+
+        #_____SI NO TENGO NINGUNA ORDEN MONTADA
+
+            #####
+
+            #_____SI ESTOY EN ESCENARIO ASK
+
+                #_____LOOP HASTA QUE MONTE LA TRANSACCION
+
+                    #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                    #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+
+                    #_____DETERMINAR SI HAY SPREAD # B
+
+                    #_____SI TENGO SPREAD
+
+                        #_____COLOCO POSICION LIMIT ASK # 3
+
+                          #_____LOOP HASTE QUE EJECUTO ASK
+
+                            #####
+
+                            #_____SI ME EJECUTARON ASK # 5
+
+                              #_____CANCELAR + GUARDAR DATOS DE TRANSACCION ASK # 6
+
+                              #_____BALANCEO DE ASK BID + ACTUALIZAR FIAT + CRYPTO DISPONIBLES # 0
+
+                            #####
+
+                            #_____ELSE NO ME EJECUTARON ASK # 5
+
+                              #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                              #####
+
+                              #_____SI YA NO SOY LA ORDEN PUNTA ASK
+
+                                #_____CANCELAR ASK # 6
+
+                                #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                                #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+
+                                #_____DETERMINAR SI HAY SPREAD # B
+
+                                #_____SI TENGO SPREAD
+
+                                    #_____COLOCO POSICION LIMIT ASK # 3
+
+                                #_____ELSE NO TENGO SPREAD
+
+                                  #_____SALIR DEL LOOP DE EJECUCION
+
+                              #####
+
+                              #_____ELIF SE ME MONTARON
+
+                                #_____NO SOY LA MAYOR PROPORCION
+
+                                  #_____CANCELAR ASK # 6
+
+                                  #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                                  #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+
+                                  #_____DETERMINAR SI HAY SPREAD # B
+
+                                  #_____SI TENGO SPREAD
+
+                                      #_____COLOCO POSICION LIMIT ASK # 3
+
+                                  #_____ELSE NO TENGO SPREAD
+
+                                    #_____SALIR DEL LOOP DE EJECUCION
+
+                                #_____SI SIGO SIENDO LA MAYOR PROPORCION
+
+                                  #_____ESPERAR
+
+                              #####
+
+                              #_____ELIF SOY LA PUNTA PERO ESTOY CERRANDO INNECESARIAMENTE EL SPREAD
+
+                                #_____CANCELAR ASK # 6
+
+                                #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                                #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+
+                                #_____DETERMINAR SI HAY SPREAD # B
+
+                                #_____SI TENGO SPREAD
+
+                                    #_____COLOCO POSICION LIMIT ASK # 3
+
+                                #_____ELSE NO TENGO SPREAD
+
+                                  #_____SALIR DEL LOOP DE EJECUCION
+
+                    #_____ELSE TENGO SPREAD
+
+                        #_____ESPERAR
+
+            #####
+
+            #_____ELIF Y SI ESTOY EN ESCENARIO BID
+
+              #_____LOOP HASTA QUE MONTE LA TRANSACCION
+
+                #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+
+                #_____DETERMINAR SI HAY SPREAD # B
+
+                #_____SI TENGO SPREAD
+
+                    #_____COLOCO POSICION LIMIT BID # 4
+
+                    #_____LOOP HASTE QUE EJECUTO BID
+
+                      #####
+
+                      #_____SI ME EJECUTARON BID # 7
+
+                        #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 6
+
+                        #_____BALANCEO DE ASK BID + ACTUALIZAR FIAT + CRYPTO DISPONIBLES # 0
+
+                      #####
+
+                      #_____ELSE NO ME EJECUTARON BID # 7
+
+                        #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                        #####
+
+                        #_____SI YA NO SOY LA ORDEN PUNTA BID
+
+                          #_____CANCELAR BID # 11
+
+                          #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                          #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+
+                          #_____DETERMINAR SI HAY SPREAD # B
+
+                          #_____SI TENGO SPREAD
+
+                              #_____COLOCO POSICION LIMIT BID # 4
+
+                          #_____ELSE NO TENGO SPREAD
+
+                            #_____SALIR DEL LOOP DE EJECUCION
+
+                        #####
+
+                        #_____ELIF SE ME MONTARON
+
+                          #_____NO SOY LA MAYOR PROPORCION
+
+                            #_____CANCELAR BID # 11
+
+                            #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                            #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+
+                            #_____DETERMINAR SI HAY SPREAD # B
+
+                            #_____SI TENGO SPREAD
+
+                                #_____COLOCO POSICION LIMIT BID # 4
+
+                            #_____ELSE NO TENGO SPREAD
+
+                              #_____SALIR DEL LOOP DE EJECUCION
+
+                          #_____SI SIGO SIENDO LA MAYOR PROPORCION
+
+                            #_____ESPERAR
+
+                        #####
+
+                        #_____ELIF SOY LA PUNTA PERO ESTOY CERRANDO INNECESARIAMENTE EL SPREAD
+
+                          #_____CANCELAR BID # 11
+
+                          #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                          #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+
+                          #_____DETERMINAR SI HAY SPREAD # B
+
+                          #_____SI TENGO SPREAD
+
+                              #_____COLOCO POSICION LIMIT BID # 4
+
+                          #_____ELSE NO TENGO SPREAD
+
+                            #_____SALIR DEL LOOP DE EJECUCION
+
+                #_____SI NO TENGO SPREAD
+
+                  #_____ESPERAR
+
+            #####
+
+            #_____ELIF Y SI ESTOY EN ESCENARIO ASK + BID
+
+              #_____LOOP HASTA QUE MONTE LA TRANSACCION
+
+                #_____ACTUALIZAR LIBRO DE ORDENES
+
+                #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+
+                #_____DETERMINAR SI HAY SPREAD # B
+
+                #_____SI TENGO SPREAD
+
+                    #_____COLOCO POSICION LIMIT ASK # 3
+
+                    #_____COLOCO POSICION LIMIT BID # 4
+
+                    #_____LOOP HASTE QUE EJECUTO ASK O BID
+
+                      #####
+
+                      #_____(SI ME EJECUTARON ASK # 5) O (SI ME EJECUTARON BID # 7)
+
+                        #_____(SI ME EJECUTARON ASK # 5) Y (SI ME EJECUTARON BID # 7)
+
+                          #_____CANCELAR + GUARDAR DATOS DE TRANSACCION ASK # 6
+
+                          #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 6
+
+                          #_____SALIR DEL LOOP DE EJECUCION
+
+                        #_____ELIF (SI ME EJECUTARON ASK # 5) Y (NO ME EJECUTARON BID # 7)
+
+                          #_____CANCELAR + GUARDAR DATOS DE TRANSACCION ASK # 6
+
+                          #_____CANCELAR BID # 11
+
+                          #_____SALIR DEL LOOP DE EJECUCION
+
+                        #_____ELIF (NO ME EJECUTARON ASK # 5) Y (SI ME EJECUTARON BID # 7)
+
+                        #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 6
+
+                        #_____CANCELAR ASK # 6
+
+                        #_____SALIR DEL LOOP DE EJECUCION
+
+                        #_____BALANCEO DE ASK BID + ACTUALIZAR FIAT + CRYPTO DISPONIBLES # 0
+
+                      #####
+
+                      #_____ELSE NO ME EJECUTARON ASK Y BID # 5
+
+                        #_____ACTUALIZAR LIBRO DE ORDENES # 2
+
+                        #####
+
+                        #_____(SI YA NO SOY LA ORDEN PUNTA ASK) O (SI YA NO SOY LA ORDEN PUNTA BID)
+
+                          #_____CANCELAR BID # 11
+
+                          #_____CANCELAR ASK # 6
+
+                          #_____SALIR DEL LOOP DE EJECUCION
+
+                        #####
+
+                        #_____ELIF SE ME MONTARON EN ASK
+
+                          #_____NO SOY LA MAYOR PROPORCION
+
+                            #_____CANCELAR BID # 11
+
+                            #_____CANCELAR ASK # 6
+
+                            #_____SALIR DEL LOOP DE EJECUCION
+
+                        #_____ELIF SE ME MONTARON EN BID
+
+                          #_____NO SOY LA MAYOR PROPORCION
+
+                            #_____CANCELAR BID # 11
+
+                            #_____CANCELAR ASK # 6
+
+                            #_____SALIR DEL LOOP DE EJECUCION
+
+                        #####
+
+                        #_____ELIF SOY LA PUNTA PERO ESTOY CERRANDO INNECESARIAMENTE EL SPREAD ASK
+
+                          #_____CANCELAR BID # 11
+
+                          #_____CANCELAR ASK # 6
+
+                          #_____SALIR DEL LOOP DE EJECUCION
+
+                        #_____ELIF SOY LA PUNTA PERO ESTOY CERRANDO INNECESARIAMENTE EL SPREAD BID
+
+                          #_____CANCELAR BID # 11
+
+                          #_____CANCELAR ASK # 6
+
+                          #_____SALIR DEL LOOP DE EJECUCION
+
+                #_____SI NO TENGO SPREAD
+
+                    #_____ESPERAR
+
