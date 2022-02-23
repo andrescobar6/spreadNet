@@ -8,7 +8,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from google.cloud import storage
 
-#_____INICIALIZAR
+#_____INICIALIZAR 
 askVolume = 0.0
 bidVolume = 0.0
 
