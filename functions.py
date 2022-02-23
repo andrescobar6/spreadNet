@@ -933,4 +933,3 @@ def createBid(limitBidPrice):
             msg = "[[ERROR]]: createBid(limitBidPrice) -> warning: no tengo los recursos suficientes<br><br>My Money: <b>${}</b><br><br>My Crypt: <b>{}</b>".format(round(getMONinAccount(),2),round(amountCRY,4))
             owners = json.loads(config.get('owner_information','OWNERS_TRADE'))
             enviar_alerta(subject, msg, owners_warning)
-
