@@ -146,8 +146,6 @@ def getMONinAccount():
 
     return balance.amount.amount
 
-def getFiatUsdQuote(fiat):
-
 # ACTUALIZA TAZA DE CAMBIO DE MERCADOS A USD
 def getFiatUsdQuote(fiat):
     
@@ -234,6 +232,7 @@ def history_trades():
     global sellPrice
     global sleepError
     global minVolumeTrade
+    global maxTradingVolumeProportion
     
     updatePast_Asks_Bids()
     
@@ -246,7 +245,7 @@ def history_trades():
     
         myActualMoney=getMONinAccount()
         myActualCrypt=getCRYinAccount()
-        recomendedVolume=myActualCrypt*0.8
+        recomendedVolume=myActualCrypt*maxTradingVolumeProportion
 
         #_____SIMULAR MARKET ORDER CON EL RECOMENDED VOLUME QUE TENGO
         
@@ -262,8 +261,8 @@ def history_trades():
 
         #_____ 
 
-        if recomendedVolume>sellQuotation*0.8:
-            recomendedVolume=sellQuotation*0.8
+        if recomendedVolume>sellQuotation*maxTradingVolumeProportion:
+            recomendedVolume=sellQuotation*maxTradingVolumeProportion
                 
     else:
         recomendedVolume=abs(pastAsks-pastBids)
@@ -280,6 +279,7 @@ def balancing_Ask_Bid():
     global bidVolume
     global askControl
     global bidControl
+    global owners_warning
     
     volume=history_trades()
     controlVariable=abs(pastAsks-pastBids)  
@@ -289,19 +289,19 @@ def balancing_Ask_Bid():
         bidVolume=volume
     elif pastAsks<pastBids:
         if (round_decimals_down(pastBids-pastAsks,5)>volume):
-            subject = "SpreadNet: Stopped (Balancing Problem)"
-            msg = "Revise SpreadNet: if (round_decimals_down(pastBids-pastAsks,5)>volume)"
+            subject = "SpreadNet: WARNING"
+            msg = "[[ERROR]]: balancing_Ask_Bid() -> if (round_decimals_down(pastBids-pastAsks,5)>volume)"
             owners = json.loads(config.get('owner_information','OWNERS_ALERT'))
-            enviar_alerta(subject, msg, owners)
+            enviar_alerta(subject, msg, owners_warning)
         else:
             askVolume=round_decimals_down(pastBids-pastAsks,5) if (pastBids-pastAsks>=minVolumeTrade) else 0.0
             bidVolume=0.0
     elif pastAsks>pastBids:
         if (round_decimals_down(pastAsks-pastBids,5)>volume):
-            subject = "SpreadNet: Stopped (Balancing Problem)"
-            msg = "Revise SpreadNet: if (round_decimals_down(pastAsks-pastBids,5)>volume)"
+            subject = "SpreadNet: WARNING"
+            msg = "[[ERROR]]: balancing_Ask_Bid() -> if (round_decimals_down(pastBids-pastAsks,5)>volume)"
             owners = json.loads(config.get('owner_information','OWNERS_ALERT'))
-            enviar_alerta(subject, msg, owners)
+            enviar_alerta(subject, msg, owners_warning)
         else:
             bidVolume=round_decimals_down(pastAsks-pastBids,5) if (pastAsks-pastBids>=minVolumeTrade) else 0.0
             askVolume=0.0
@@ -558,8 +558,379 @@ def finishThemAll():
 
         balancing_Ask_Bid()
 
+# DESCARGAR ORDERBOOK DE BUDA
+def request_order_book():
+    
+    global URL
+    global API_KEY
+    global API_SECRET
+    
+    while True:
+        try:
+            with requests.get(URL, auth=BudaHMACAuth(API_KEY, API_SECRET)) as r:
+                order_book = r.json()
+                if ( order_book != None and 'order_book' in order_book ):
+                    return order_book['order_book']
+                    break
+                else:
+                    print('[[ERROR]]: request_order_book()')
+        except:
+            print('[[ERROR]]: request_order_book()')
 
+# ACTUALIZAR PRECIOS LÍMITES DE LIBRO DE ÓRDENES + ACTUALIZAR TOPES
+def updateLimits():
+    
+    global priceDistance
+    global limitAskPrice
+    global limitBidPrice
+    global limitAskVolume
+    global limitBidVolume
+    global tradeProportion
+    
+    order_book = request_order_book()
+    
+    limitAskPrice = float(order_book['asks'][0][0])
+    limitBidPrice = float(order_book['bids'][0][0])
+    limitAskVolume = float(order_book['asks'][0][1])
+    limitBidVolume = float(order_book['bids'][0][1])
 
+    if (float(askVolume/(limitAskVolume+askVolume))<tradeProportion) and (askVolume>0.0):
+        limitAskPrice -= priceDistance
+    if (float(bidVolume/(limitBidVolume+bidVolume))<tradeProportion) and (bidVolume>0.0):
+        limitBidPrice += priceDistance
 
+# ACTUALIZAR PRECIOS
+def updatePriceVolume():
+    
+    global newAskPrice
+    global newBidPrice
+    global newLimitAskVolume        
+    global newLimitBidVolume
+    global newPreLimitAskPrice
+    global newPreLimitBidPrice
 
+    order_book = request_order_book()
+
+    newAskPrice = float(order_book['asks'][0][0])
+    newBidPrice = float(order_book['bids'][0][0])
+    newLimitAskVolume = float(order_book['asks'][0][1])
+    newLimitBidVolume = float(order_book['bids'][0][1])
+    newPreLimitAskPrice = float(request_order_book()["asks"][1][0])
+    newPreLimitBidPrice = float(request_order_book()["bids"][1][0])
+
+# VALIDAR MARGEN DE UTILIDAD
+def validMargin(limitAskPrice, limitBidPrice):
+    global margin
+    global commission
+    return ((limitAskPrice*(1-2*commission))/limitBidPrice)-1 > margin
+
+# CANCEL ASK ORDER + WRITE BIGQUERY DATABSE
+def cancelAsk():
+
+    global CRYPT
+    global MONEY
+    global client
+    global askOrderId
+    global gotAskOrder
+    global theorySellPrice
+    global askOrderDetails
+    global theorySellExecuted
+    
+    #_____ACTUALIZAR DETALLES DE LA ORDEN
+    while True:
+        try:
+            askOrderDetails = client.order_details(askOrderId)
+            break
+        except:
+            print("[[ERROR]]: cancelAsk() -> askOrderDetails = client.order_details(askOrderId)")
+    
+    #_____SI LA ORDEN SE EJECUTÓ PARCIAL O TOTALMENTE
+    if (askOrderDetails.traded_amount.amount > 0.0):
+        theorySellExecuted=theorySellPrice
+        write_buy_sell_prices()
+    
+    #_____CANCELAR LA ORDEN A COMO DE LUGAR
+    while True:
+        try:
+            client.cancel_order(askOrderId)
+            break
+        except:
+            print("[[ERROR]]: cancelAsk() -> askOrderDetails = client.cancel_order(askOrderId)")
+    
+    #_____ACTUALIZAR DETALLES DE LA ORDEN
+    while True:
+        while True:
+            try:
+                askOrderDetails = client.order_details(askOrderId)
+                break
+            except:
+                print("[[ERROR]]: cancelAsk() -> askOrderDetails = client.order_details(askOrderId) (2)")
+
+        #_____SI LA ORDEN YA SE MUESTRA COMO CANCELADA O TRANSADA
+        if (askOrderDetails.state=="canceled") or (askOrderDetails.state=="traded"):
+            break
+        else:
+            
+            #_____CANCELAR LA ORDEN
+            while True:
+                try:
+                    client.cancel_order(askOrderId)
+                    break
+                except:
+                    print("[[ERROR]]: cancelAsk() -> askOrderDetails = client.cancel_order(askOrderId) (2)")
+    
+    #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
+    bigquery_client=bigquery.Client(project="dogwood-terra-308100")
+    dataset_ref=bigquery_client.dataset("spreadNet")
+    table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
+    table=dataset_ref.table(CRYPT+"_"+MONEY)
+    table=bigquery.Table(table)
+
+    #_____ASIGNAR COLUMNAS A BASE DE DATOS DE LA ORDEN CANCELADA
+    columns=["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE","JSON"]
+    append_order_dataframe=pd.DataFrame(columns=columns)
+
+    #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
+    order_dataframe=pd.DataFrame(askOrderDetails[14]).head(1)
+    append_order_dataframe=append_order_dataframe.append(order_dataframe,sort=False)
+
+    #_____QUITAR COLUMNAS INNECESARIAS
+    append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
+
+    #_____AGREGAR COLUMNAS FALTANTES
+    append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
+    append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
+    append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
+    append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
+    append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+    append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+    append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
+    append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"]/append_order_dataframe.at[0,"MY_TRM"]
+    append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
+    if append_order_dataframe.at[0,"TYPE"]=="Ask":
+        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+    else:
+        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+    append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+
+    #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
+    bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
+
+    #_____ACTUALIZAR VARIABLES
+    askOrderDetails=None
+    askOrderId=None
+
+# CREAR ORDEN ASK (LIMIT)
+def createAsk(limitAskPrice):
+    
+    global MONEY
+    global CRYPT
+    global client
+    global areCRY
+    global pastAsks
+    global pastBids
+    global askVolume
+    global askOrderId
+    global balanceCRY
+    global gotAskOrder
+    global owners_warning
+    global marketDecimals
+    global minVolumeTrade
+    global askOrderDetails
+    global theorySellPrice
+
+    #_____TRATAR DE CANCELAR ORDEN ASK SI LLEGASE A EXITIR UNA
+    while askOrderId!=None:
+        try:
+            cancelAsk()
+        except:
+            pass
+
+    #_____ACTUALIZAR SALDO CRYPTO EN LA CUENTA
+    amountCRY = getCRYinAccount()
+    
+    #_____SI CANTIDAD DE CRYPTO SUPERA EL MÍNIMO VOLUMEN DE TRANSACCIÓN
+    if round_decimals_down(askVolume,marketDecimals) >= minVolumeTrade:
+        
+        #_____SI EL SALDO DE CRYPTO SUPERA EL VOLUMEN IDEAL DE TRANSACCIÓN
+        if (amountCRY >= askVolume):
+            areCRY = True
+            amountAsk = askVolume
+
+            #_____MONTAR ORDEN ASK (LIMIT)
+            while True:
+                try:
+                    orden = client.new_order(CRYPT.lower()+"-"+MONEY.lower(), "ask", "limit", amountAsk, limitAskPrice)
+                    askOrderId = orden.id
+                    askOrderDetails = client.order_details(askOrderId)
+                    theorySellPrice=limitAskPrice
+                    break
+                except:
+                    print("[[ERROR]]: createAsk(limitAskPrice)")
+
+            #_____TESTIGO DE CREACIÓN DE ORDEN
+            gotAskOrder = True                    
+        
+        #_____SI NO TENGO LAS CRYPTOS SUFICIENTES
+        else:
+            print("[[ERROR]]: createAsk(limitAskPrice) -> warning: no tengo los recursos suficientes")
+            subject = "SpreadNet: WARNING"
+            msg = "[[ERROR]]: createAsk(limitAskPrice) -> warning: no tengo los recursos suficientes<br><br>My Money: <b>${}</b><br><br>My Crypt: <b>{}</b>".format(round(getMONinAccount(),2),round(amountCRY,4))
+            owners = json.loads(config.get('owner_information','OWNERS_TRADE'))
+            enviar_alerta(subject, msg, owners_warning)
+
+# CANCEL BID ORDER + WRITE BIGQUERY DATABSE
+def cancelBid():
+
+    global CRYPT
+    global MONEY
+    global client
+    global bidOrderId
+    global gotBidOrder
+    global theorySellPrice
+    global bidOrderDetails
+    global theorySellExecuted
+    
+    #_____ACTUALIZAR DETALLES DE LA ORDEN
+    while True:
+        try:
+            bidOrderDetails = client.order_details(bidOrderId)
+            break
+        except:
+            print("[[ERROR]]: cancelBid() -> bidOrderDetails = client.order_details(bidOrderId)")
+    
+    #_____SI LA ORDEN SE EJECUTÓ PARCIAL O TOTALMENTE
+    if (bidOrderDetails.traded_amount.amount > 0.0):
+        theorySellExecuted=theorySellPrice
+        write_buy_sell_prices()
+    
+    #_____CANCELAR LA ORDEN A COMO DE LUGAR
+    while True:
+        try:
+            client.cancel_order(bidOrderId)
+            break
+        except:
+            print("[[ERROR]]: cancelBid() -> bidOrderDetails = client.cancel_order(bidOrderId)")
+    
+    #_____ACTUALIZAR DETALLES DE LA ORDEN
+    while True:
+        while True:
+            try:
+                bidOrderDetails = client.order_details(bidOrderId)
+                break
+            except:
+                print("[[ERROR]]: cancelBid() -> bidOrderDetails = client.order_details(bidOrderId) (2)")
+
+        #_____SI LA ORDEN YA SE MUESTRA COMO CANCELADA O TRANSADA
+        if (bidOrderDetails.state=="canceled") or (bidOrderDetails.state=="traded"):
+            break
+        else:
+            
+            #_____CANCELAR LA ORDEN
+            while True:
+                try:
+                    client.cancel_order(bidOrderId)
+                    break
+                except:
+                    print("[[ERROR]]: cancelBid() -> bidOrderDetails = client.cancel_order(bidOrderId) (2)")
+    
+    #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
+    bigquery_client=bigquery.Client(project="dogwood-terra-308100")
+    dataset_ref=bigquery_client.dataset("spreadNet")
+    table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
+    table=dataset_ref.table(CRYPT+"_"+MONEY)
+    table=bigquery.Table(table)
+
+    #_____ASIGNAR COLUMNAS A BASE DE DATOS DE LA ORDEN CANCELADA
+    columns=["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE","JSON"]
+    append_order_dataframe=pd.DataFrame(columns=columns)
+
+    #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
+    order_dataframe=pd.DataFrame(bidOrderDetails[14]).head(1)
+    append_order_dataframe=append_order_dataframe.append(order_dataframe,sort=False)
+
+    #_____QUITAR COLUMNAS INNECESARIAS
+    append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
+
+    #_____AGREGAR COLUMNAS FALTANTES
+    append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
+    append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
+    append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
+    append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
+    append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+    append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+    append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
+    append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"]/append_order_dataframe.at[0,"MY_TRM"]
+    append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
+    if append_order_dataframe.at[0,"TYPE"]=="Bid":
+        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+    else:
+        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+    append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+
+    #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
+    bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
+
+    #_____ACTUALIZAR VARIABLES
+    bidOrderDetails=None
+    bidOrderId=None
+
+# CREAR ORDEN BID (LIMIT)
+def createBid(limitBidPrice):
+    
+    global MONEY
+    global CRYPT
+    global client
+    global areCRY
+    global pastBids
+    global pastBids
+    global bidVolume
+    global bidOrderId
+    global balanceCRY
+    global gotBidOrder
+    global owners_warning
+    global marketDecimals
+    global minVolumeTrade
+    global bidOrderDetails
+    global theorySellPrice
+
+    #_____TRATAR DE CANCELAR ORDEN BID SI LLEGASE A EXITIR UNA
+    while bidOrderId!=None:
+        try:
+            cancelBid()
+        except:
+            pass
+
+    #_____ACTUALIZAR SALDO CRYPTO EN LA CUENTA
+    amountCRY = getCRYinAccount()
+    
+    #_____SI CANTIDAD DE CRYPTO SUPERA EL MÍNIMO VOLUMEN DE TRANSACCIÓN
+    if round_decimals_down(bidVolume,marketDecimals) >= minVolumeTrade:
+        
+        #_____SI EL SALDO DE CRYPTO SUPERA EL VOLUMEN IDEAL DE TRANSACCIÓN
+        if (amountCRY >= bidVolume):
+            areCRY = True
+            amountBid = bidVolume
+
+            #_____MONTAR ORDEN BID (LIMIT)
+            while True:
+                try:
+                    orden = client.new_order(CRYPT.lower()+"-"+MONEY.lower(), "bid", "limit", amountBid, limitBidPrice)
+                    bidOrderId = orden.id
+                    bidOrderDetails = client.order_details(bidOrderId)
+                    theorySellPrice=limitBidPrice
+                    break
+                except:
+                    print("[[ERROR]]: createBid(limitBidPrice)")
+
+            #_____TESTIGO DE CREACIÓN DE ORDEN
+            gotBidOrder = True                    
+        
+        #_____SI NO TENGO LAS CRYPTOS SUFICIENTES
+        else:
+            print("[[ERROR]]: createBid(limitBidPrice) -> warning: no tengo los recursos suficientes")
+            subject = "SpreadNet: WARNING"
+            msg = "[[ERROR]]: createBid(limitBidPrice) -> warning: no tengo los recursos suficientes<br><br>My Money: <b>${}</b><br><br>My Crypt: <b>{}</b>".format(round(getMONinAccount(),2),round(amountCRY,4))
+            owners = json.loads(config.get('owner_information','OWNERS_TRADE'))
+            enviar_alerta(subject, msg, owners_warning)
 
