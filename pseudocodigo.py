@@ -1,41 +1,9 @@
-#_____TABLAS
-# 1: SUMMARY TABLE QUE RECOPILA
-# A) SALDOS DE CADA CRYPTO + FIAT
-# B) PRECIO CRYPTO EN FIAT DIADA
-# C) FECHA SIMULACIÓN
-# D) SIMULACIÓN FIAT A USD + SIMULACIÓN CRYPTO A USD
-# E) GUARDAR REGISTRO SEGREGADO POR DIADA
-# F) UTILIDAD ACUMULADA POR MERCADO
-
-# 2: TRADING BOOK AÑADIR
-# A) UTILIDAD ACUMULADA (OPERACIONAL)
-
-
-#_____FUNCIONES
-# 0: ACTUALIZO BASE DE DATOS + BALANCEO + ACTUALIZAR FIAT + CRYPTO DISPONIBLES
-# 1: ACTUALIZAR ORDENES EXISTENTES + CANCELO ALL SI TENGO ORDENES + BALANCEO
-# 2: ACTUALIZAR VARIABLE GLOBAL DE PRECIOS PUNTA DEL LIBRO DE ORDENES
-# 3: COLOCA POSICION ASK + PRECIO ASK + DETALLE TRANSACCION ASK + ID TRANSACCION + TESTIGO DE QUE TENGO ORDEN ASK
-# 4: COLOCA POSICION BID + PRECIO BID + DETALLE TRANSACCION BID + ID TRANSACCION + TESTIGO DE QUE TENGO ORDEN BID
-# 5: ACTUALIZAR DETALLE TRANSACCION ASK + TRUE SI EJECUTARON + FALSE SI NO EJECUTARON
-# 6: ACTUALIZAR DETALLE TRANSACCION BID + TRUE SI EJECUTARON + FALSE SI NO EJECUTARON
-# 7: CANCELO TRANSACCION ASK + SUBO DATOS DE TRANSACCION ASK A BIGQUERY
-# 8: CANCELO TRANSACCION BID + SUBO DATOS DE TRANSACCION BID A BIGQUERY
-# 9: ACTUALIZAR SALDO DE FIAT + SALDO DE CRYPTO
-
-#_____VARIABLES
-# A: VALOR QUE ME DICE CUANTO ME DEBO ALEJAR DEL SPREAD ($)
-# B: VALOR DEL SPREAD MINIMO AL CUAL DEBERIA OPERAR
-# C: DETALLE TRANSACCION ASK
-# D: DETALLE TRANSACCION BID
-# E: PRECIO ASK
-# F: PRECIO BID
-
 #_____LIBRERÍAS
-
 import os
 import ast
+import time
 import requests
+import functions
 import pandas as pd
 from dotenv import load_dotenv
 from google.cloud import storage
@@ -70,7 +38,7 @@ while(True):
 
                 #_____COLOCO POSICION LIMIT ASK # 3
                 createAsk(limitAskPrice) #Función 3
-                gotOrder = True 
+                gotOrder = True
                   #_____LOOP HASTE QUE EJECUTO ASK
                 while(gotOrder):
                     #####
@@ -103,7 +71,7 @@ while(True):
                     #####
                     else:
                     #_____ELSE NO ME EJECUTARON ASK # 5
-                    
+
                       #_____ACTUALIZAR LIBRO DE ORDENES # 2
 
                       #####
@@ -529,185 +497,261 @@ while(True):
 
                       #_____ELSE NO ME EJECUTARON BID # 7
 
-                        #_____ACTUALIZAR LIBRO DE ORDENES # 2
+askOrderId=""
 
-                        #####
+gotAskOrder = False
+gotBidOrder = False
+limitAskPrice = 0.0
+limitBidPrice = 0.0
 
-                        #_____SI YA NO SOY LA ORDEN PUNTA BID
+sleepWait=0
+sleepApis=0
 
-                          #_____CANCELAR BID # 11
+client=""
+MONEY="COP"
+CRYPTO="BTC"
+owners_warning=""
+priceDistance=0.0
+minVolumeTrade=0.0
+marketDecimals=0.0
+tradeProportion=0.5
 
-                          #_____ACTUALIZAR LIBRO DE ORDENES # 2
+theoryBuyPrice=0.0
+theoryBuyExecuted=0.0
 
-                          #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+theorySellPrice=0.0
+theorySellExecuted=0.0
 
-                          #_____DETERMINAR SI HAY SPREAD # B
+utilityMarginThreshold=0.0
 
-                          #_____SI TENGO SPREAD
+maxTradingVolumeProportion=0.01
 
-                              #_____COLOCO POSICION LIMIT BID # 4
+#_____LOOP INFINITO
+while True:
 
-                          #_____ELSE NO TENGO SPREAD
+  #_____CANCELAR CUALQUIER TIPO DE ORDEN EXISTENTE + BALANCEO DE ASK BID + ACTUALIZAR FIAT + CRYPTO DISPONIBLES
+  functions.finishThemAll()
 
-                            #_____SALIR DEL LOOP DE EJECUCION
+  #_____SI SE ESTÁ EN ESCENARIO ASK
+  if (askVolume>0.0) and (bidVolume==0.0):
 
-                        #####
+    #_____ACTUALIZAR LIBRO DE ORDENES + DETERMIAR EL PRECIO TEORICO TRANSACCION
+    functions.updateLimits()
 
-                        #_____ELIF SE ME MONTARON
+    #_____DETERMINAR SI HAY SPREAD
+    utilityMargin=functions.validMargin(limitAskPrice, theoryBuyExecuted)
 
-                          #_____NO SOY LA MAYOR PROPORCION
+    #_____SI HAY SPREAD SUFICIENTE
+    if utilityMargin > utilityMarginThreshold:
 
-                            #_____CANCELAR BID # 11
+      #_____MONTAR POSICION ASK (LIMIT)
+      functions.crateAsk(limitAskPrice)
 
-                            #_____ACTUALIZAR LIBRO DE ORDENES # 2
+      #_____LOOP HASTE QUE EJECUTO ASK
+      while gotAskOrder:
 
-                            #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+        #_____ACTUALIZAR ORDEN MONTADA
+        while True:
+          try:
+              askOrderDetails = client.order_details(askOrderId)
+              break
+          except:
+            time.sleep(sleepApis)
 
-                            #_____DETERMINAR SI HAY SPREAD # B
+        #_____REVISAR SI SE EJECUTÓ ORDEN ASK PARCIAL O TOTALMENTE
+        if (askOrderDetails.traded_amount.amount > 0.0):
 
-                            #_____SI TENGO SPREAD
+          #_____ESCRIBIR PRECIOS EJECUTADOS + CANCELAR ORDEN + BALANCEAR
+          functions.cancelAsk()
+          functions.balancing_Ask_Bid()
+          gotAskOrder = False
 
-                                #_____COLOCO POSICION LIMIT BID # 4
+        #_____ELSE NO ME EJECUTARON ASK
+        else:
 
-                            #_____ELSE NO TENGO SPREAD
+          #_____ACTUALIZAR LIBRO DE ORDENES (PRECIOS + VOLUMENES PUNTA)
+          functions.updatePriceVolume()
 
-                              #_____SALIR DEL LOOP DE EJECUCION
+          #####
 
-                          #_____SI SIGO SIENDO LA MAYOR PROPORCION
+          #_____SI HUBO CAMBIOS DEL MERCADO: PRECIO PUNTA CAMBIA + REDUZCO SPREAD INNECESARIAMENTE + SE MONTARON CAMBIANDO LA PROPORCIÓN
+          if (newAskPrice != theorySellPrice) or \
+            ((theorySellPrice+priceDistance<=newPreLimitAskPrice) and (newAskPrice == theorySellPrice)) or \
+              ((float(askVolume/(newLimitAskVolume))<tradeProportion) and (newAskPrice == theorySellPrice)):
 
-                            #_____ESPERAR
+            #_____CANCELAR ASK
+            functions.cancelAsk()
+            functions.balancing_Ask_Bid()
+            gotAskOrder = False
 
-                        #####
+            #_____SI SE ESTÁ EN ESCENARIO ASK
+            if (askVolume>0.0) and (bidVolume==0.0):
 
-                        #_____ELIF SOY LA PUNTA PERO ESTOY CERRANDO INNECESARIAMENTE EL SPREAD
+              #_____ACTUALIZAR LIBRO DE ORDENES + DETERMIAR EL PRECIO TEORICO TRANSACCION
+              functions.updateLimits()
 
-                          #_____CANCELAR BID # 11
+              #_____MONTAR POSICION ASK (LIMIT)
+              functions.crateAsk(limitAskPrice)
 
-                          #_____ACTUALIZAR LIBRO DE ORDENES # 2
+  #####
 
-                          #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+  #_____ELIF SI SE ESTÁ EN ESCENARIO BID
+  if (askVolume==0.0) and (bidVolume>0.0):
 
-                          #_____DETERMINAR SI HAY SPREAD # B
+    #_____ACTUALIZAR LIBRO DE ORDENES + DETERMIAR EL PRECIO TEORICO TRANSACCION
+    functions.updateLimits()
 
-                          #_____SI TENGO SPREAD
+    #_____DETERMINAR SI HAY SPREAD
+    utilityMargin=functions.validMargin(theorySellExecuted, limitBidPrice)
 
-                              #_____COLOCO POSICION LIMIT BID # 4
+    #_____SI HAY SPREAD SUFICIENTE
+    if utilityMargin > utilityMarginThreshold:
 
-                          #_____ELSE NO TENGO SPREAD
+      #_____MONTAR POSICION BID (LIMIT)
+      functions.crateBid(limitBidPrice)
 
-                            #_____SALIR DEL LOOP DE EJECUCION
+      #_____LOOP HASTE QUE EJECUTO BID
+      while gotBidOrder:
 
-                #_____SI NO TENGO SPREAD
+        #_____ACTUALIZAR ORDEN MONTADA
+        while True:
+          try:
+              bidOrderDetails = client.order_details(bidOrderId)
+              break
+          except:
+            time.sleep(sleepApis)
 
-                  #_____ESPERAR
+        #_____REVISAR SI SE EJECUTÓ ORDEN BID PARCIAL O TOTALMENTE
+        if (bidOrderDetails.traded_amount.amount > 0.0):
 
-            #####
+          #_____ESCRIBIR PRECIOS EJECUTADOS + CANCELAR ORDEN + BALANCEAR
+          functions.cancelBid()
+          functions.balancing_Ask_Bid()
+          gotBidOrder = False
 
-            #_____ELIF Y SI ESTOY EN ESCENARIO ASK + BID
+        #_____ELSE NO ME EJECUTARON BID
+        else:
 
-              #_____LOOP HASTA QUE MONTE LA TRANSACCION
+          #_____ACTUALIZAR LIBRO DE ORDENES (PRECIOS + VOLUMENES PUNTA)
+          functions.updatePriceVolume()
 
-                #_____ACTUALIZAR LIBRO DE ORDENES
+          #####
 
-                #_____DETERMIAR EL PRECIO TEORICO TRANSACCION # A
+          #_____SI HUBO CAMBIOS DEL MERCADO: PRECIO PUNTA CAMBIA + REDUZCO SPREAD INNECESARIAMENTE + SE MONTARON CAMBIANDO LA PROPORCIÓN
+          if (newBidPrice != theoryBuyPrice) or \
+            ((theoryBuyPrice-priceDistance>=newPreLimitBidPrice) and (newBidPrice == theoryBuyPrice)) or \
+              ((float(bidVolume/(newLimitBidVolume))<tradeProportion) and (newBidPrice == theoryBuyPrice)):
 
-                #_____DETERMINAR SI HAY SPREAD # B
+            #_____CANCELAR BID
+            functions.cancelBid()
+            functions.balancing_Ask_Bid()
+            gotBidOrder = False
 
-                #_____SI TENGO SPREAD
+            #_____SI SE ESTÁ EN ESCENARIO BID
+            if (bidVolume==0.0) and (bidVolume>0.0):
 
-                    #_____COLOCO POSICION LIMIT ASK # 3
+              #_____ACTUALIZAR LIBRO DE ORDENES + DETERMIAR EL PRECIO TEORICO TRANSACCION
+              functions.updateLimits()
 
-                    #_____COLOCO POSICION LIMIT BID # 4
+              #_____MONTAR POSICION ASK (LIMIT)
+              functions.crateBid(limitBidPrice)
 
-                    #_____LOOP HASTE QUE EJECUTO ASK O BID
+  #####
 
-                      #####
+  #_____ELIF SI SE ESTÁ EN ESCENARIO ASK + BID
+  if (askVolume>0.0) and (bidVolume>0.0):
 
-                      #_____(SI ME EJECUTARON ASK # 5) O (SI ME EJECUTARON BID # 7)
+    #_____ACTUALIZAR LIBRO DE ORDENES + DETERMIAR EL PRECIO TEORICO TRANSACCION
+    functions.updateLimits()
 
-                        #_____(SI ME EJECUTARON ASK # 5) Y (SI ME EJECUTARON BID # 7)
+    #_____DETERMINAR SI HAY SPREAD
+    utilityMargin=functions.validMargin(limitAskPrice, limitBidPrice)
 
-                          #_____CANCELAR + GUARDAR DATOS DE TRANSACCION ASK # 6
+    #_____SI HAY SPREAD SUFICIENTE
+    if utilityMargin > utilityMarginThreshold:
 
-                          #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 6
+        #_____MONTO POSICION LIMIT ASK
+        functions.crateAsk(limitAskPrice)
 
-                          #_____SALIR DEL LOOP DE EJECUCION
+        #_____COLOCO POSICION LIMIT BID
+        functions.crateBid(limitBidPrice)
 
-                        #_____ELIF (SI ME EJECUTARON ASK # 5) Y (NO ME EJECUTARON BID # 7)
+        #_____LOOP HASTE QUE EJECUTO ASK O BID
+        while (gotAskOrder or gotBidOrder):
 
-                          #_____CANCELAR + GUARDAR DATOS DE TRANSACCION ASK # 6
+          #_____ACTUALIZAR ORDEN ASK MONTADA
+          while True:
+            try:
+                askOrderDetails = client.order_details(askOrderId)
+                break
+            except:
+              time.sleep(sleepApis)
 
-                          #_____CANCELAR BID # 11
+          #_____ACTUALIZAR ORDEN BID MONTADA
+          while True:
+            try:
+                bidOrderDetails = client.order_details(bidOrderId)
+                break
+            except:
+              time.sleep(sleepApis)
 
-                          #_____SALIR DEL LOOP DE EJECUCION
+          #####
 
-                        #_____ELIF (NO ME EJECUTARON ASK # 5) Y (SI ME EJECUTARON BID # 7)
+          #_____(SI ME EJECUTARON ASK) O (SI ME EJECUTARON BID)
+          if (askOrderDetails.traded_amount.amount > 0.0) or (bidOrderDetails.traded_amount.amount > 0.0):
 
-                        #_____CANCELAR + GUARDAR DATOS DE TRANSACCION BID # 6
+            #_____ESCRIBIR PRECIOS EJECUTADOS + CANCELAR ORDEN (ASK)
+            functions.cancelAsk()
+            gotAskOrder = False
 
-                        #_____CANCELAR ASK # 6
+            #_____ESCRIBIR PRECIOS EJECUTADOS + CANCELAR ORDEN + BALANCEAR
+            functions.cancelBid()
+            gotBidOrder = False
 
-                        #_____SALIR DEL LOOP DE EJECUCION
+            #_____BALANCEAR
+            functions.balancing_Ask_Bid()
 
-                        #_____BALANCEO DE ASK BID + ACTUALIZAR FIAT + CRYPTO DISPONIBLES # 0
+          #####
 
-                      #####
+          #_____ELSE NO ME EJECUTARON ASK NI BID
+          else:
 
-                      #_____ELSE NO ME EJECUTARON ASK Y BID # 5
+            #_____ACTUALIZAR LIBRO DE ORDENES (PRECIOS + VOLUMENES PUNTA)
+            functions.updatePriceVolume()
 
-                        #_____ACTUALIZAR LIBRO DE ORDENES # 2
+            #_____SI HUBO CAMBIOS DEL MERCADO: PRECIO PUNTA CAMBIA + REDUZCO SPREAD INNECESARIAMENTE + SE MONTARON CAMBIANDO LA PROPORCIÓN
+            if((newAskPrice != theorySellPrice) or \
+              ((theorySellPrice+priceDistance<=newPreLimitAskPrice) and (newAskPrice == theorySellPrice)) or \
+                ((float(askVolume/(newLimitAskVolume))<tradeProportion) and (newAskPrice == theorySellPrice))) or \
+                  ((newBidPrice != theoryBuyPrice) or \
+                    ((theoryBuyPrice-priceDistance>=newPreLimitBidPrice) and (newBidPrice == theoryBuyPrice)) or \
+                      ((float(bidVolume/(newLimitBidVolume))<tradeProportion) and (newBidPrice == theoryBuyPrice))):
 
-                        #####
+              #_____ESCRIBIR PRECIOS EJECUTADOS + CANCELAR ORDEN (ASK)
+              functions.cancelAsk()
+              gotAskOrder = False
 
-                        #_____(SI YA NO SOY LA ORDEN PUNTA ASK) O (SI YA NO SOY LA ORDEN PUNTA BID)
+              #_____ESCRIBIR PRECIOS EJECUTADOS + CANCELAR ORDEN + BALANCEAR
+              functions.cancelBid()
+              gotBidOrder = False
 
-                          #_____CANCELAR BID # 11
+              #_____BALANCEAR
+              functions.balancing_Ask_Bid()
 
-                          #_____CANCELAR ASK # 6
+              #_____ELIF SI SE ESTÁ EN ESCENARIO ASK + BID
+              if (askVolume>0.0) and (bidVolume>0.0):
 
-                          #_____SALIR DEL LOOP DE EJECUCION
+                #_____ACTUALIZAR LIBRO DE ORDENES + DETERMIAR EL PRECIO TEORICO TRANSACCION
+                functions.updateLimits()
 
-                        #####
+                #_____DETERMINAR SI HAY SPREAD
+                utilityMargin=functions.validMargin(limitAskPrice, limitBidPrice)
 
-                        #_____ELIF SE ME MONTARON EN ASK
+                #_____SI HAY SPREAD SUFICIENTE
+                if utilityMargin > utilityMarginThreshold:
 
-                          #_____NO SOY LA MAYOR PROPORCION
+                    #_____MONTO POSICION LIMIT ASK
+                    functions.crateAsk(limitAskPrice)
 
-                            #_____CANCELAR BID # 11
-
-                            #_____CANCELAR ASK # 6
-
-                            #_____SALIR DEL LOOP DE EJECUCION
-
-                        #_____ELIF SE ME MONTARON EN BID
-
-                          #_____NO SOY LA MAYOR PROPORCION
-
-                            #_____CANCELAR BID # 11
-
-                            #_____CANCELAR ASK # 6
-
-                            #_____SALIR DEL LOOP DE EJECUCION
-
-                        #####
-
-                        #_____ELIF SOY LA PUNTA PERO ESTOY CERRANDO INNECESARIAMENTE EL SPREAD ASK
-
-                          #_____CANCELAR BID # 11
-
-                          #_____CANCELAR ASK # 6
-
-                          #_____SALIR DEL LOOP DE EJECUCION
-
-                        #_____ELIF SOY LA PUNTA PERO ESTOY CERRANDO INNECESARIAMENTE EL SPREAD BID
-
-                          #_____CANCELAR BID # 11
-
-                          #_____CANCELAR ASK # 6
-
-                          #_____SALIR DEL LOOP DE EJECUCION
-
-                #_____SI NO TENGO SPREAD
-
-                    #_____ESPERAR
-
+                    #_____COLOCO POSICION LIMIT BID
+                    functions.crateBid(limitBidPrice)
