@@ -1,2 +1,2 @@
-# spreadNet
-SpreadNet - Trading Bot One-Exchange
+# SpreadNet
+Trading Bot One-Exchange (Buda) 
