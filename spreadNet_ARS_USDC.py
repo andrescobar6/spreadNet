@@ -1,6 +1,6 @@
 #_____MARKET
-MONEY="COP"
-CRYPT="BTC"
+MONEY="ARS"
+CRYPT="USDC"
 
 #_____CORREOS
 owners_warning=["andrescobar6@gmail.com"]
@@ -9,10 +9,10 @@ owners_warning=["andrescobar6@gmail.com"]
 sleepApis=2
 sleepError=2
 priceDistance=5
-marketDecimals=4
+marketDecimals=2
 sleepErrorApis=10
 tradeProportion=0.8
-minVolumeTrade=0.0001
+minVolumeTrade=0.01
 utilityMarginThreshold=0.001
 maxTradingVolumeProportion=0.8
 

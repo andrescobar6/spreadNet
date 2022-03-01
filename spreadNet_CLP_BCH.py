@@ -1,6 +1,6 @@
 #_____MARKET
-MONEY="COP"
-CRYPT="BTC"
+MONEY="CLP"
+CRYPT="BCH"
 
 #_____CORREOS
 owners_warning=["andrescobar6@gmail.com"]
@@ -9,10 +9,10 @@ owners_warning=["andrescobar6@gmail.com"]
 sleepApis=2
 sleepError=2
 priceDistance=5
-marketDecimals=4
+marketDecimals=3
 sleepErrorApis=10
 tradeProportion=0.8
-minVolumeTrade=0.0001
+minVolumeTrade=0.001
 utilityMarginThreshold=0.001
 maxTradingVolumeProportion=0.8
 
