@@ -491,7 +491,7 @@ def finishThemAll():
                     if (askOrderDetailsFinish.traded_amount.amount > 0.0):
                         theorySellExecuted=theorySellPrice
                         write_buy_sell_prices()
-                    
+                        
                     time.sleep(sleepApis)
 
                     #_____ITERAR HASTA QUE SE CANCELE LA ORDEN
@@ -529,71 +529,74 @@ def finishThemAll():
                                     print("[ERROR]: finishThemAll() -> askOrderDetailsFinish = client.cancel_order(i)(2)")
                                     time.sleep(sleepError)
 
-                    #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
-                    bigquery_client=bigquery.Client(project="dogwood-terra-308100")
-                    dataset_ref=bigquery_client.dataset("spreadNet")
-                    table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
-                    table=dataset_ref.table(CRYPT+"_"+MONEY)
-                    table=bigquery.Table(table)
-
-                    #_____COLUMNAS
-                    columns=['ID','UUID','MARKET_ID','ACCOUNT_ID','TYPE','STATE','CREATED_AT','FEE_CURRENCY','PRICE_TYPE','SOURCE','LIMIT','AMOUNT','ORIGINAL_AMOUNT','TRADED_AMOUNT','TOTAL_EXCHANGED','PAID_FEE']
-
-                    #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
-                    append_order_dataframe=pd.DataFrame(askOrderDetailsFinish.json).head(1)
-                    append_order_dataframe.columns=columns
-
-                    #_____QUITAR COLUMNAS INNECESARIAS
-                    append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
-
-                    #_____DAR FORMATO A COLUMNAS
-                    append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
-                    append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
-                    append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
-                    append_order_dataframe["CREATED_AT"]=pd.to_datetime(append_order_dataframe["CREATED_AT"])
-                    append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
-                    append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
-                    append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
-                    append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
-                    append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
-                    append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
-                    append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
-                    append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
-                    append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
-                    append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
-
-                    #_____AGREGAR COLUMNAS FALTANTES
-                    append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
-                    append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
-                    append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
-                    append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
-                    append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-                    append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-                    append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
-                    append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=(append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"])/append_order_dataframe.at[0,"MY_TRM"]
-                    append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
-                    if append_order_dataframe.at[0,"TYPE"]=="Ask":
-                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-                    else:
-                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-                    append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                    #_____SI EJECUTÉ PARCIAL O TOTALEMTNE LA ÓRDEN -> GUARDAR PRECIOS
+                    if (askOrderDetailsFinish.traded_amount.amount > 0.0):
                     
-                    #_____DAR FORMATO A COLUMNAS NUEVAS
-                    append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
-                    append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
-                    append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
-                    append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
-                    append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
-                    append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
-                    append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
-                    append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
-                    append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
-                    append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
-                    append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+                        #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
+                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+                        bigquery_client=bigquery.Client(project="dogwood-terra-308100")
+                        dataset_ref=bigquery_client.dataset("spreadNet")
+                        table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
+                        table=dataset_ref.table(CRYPT+"_"+MONEY)
+                        table=bigquery.Table(table)
 
-                    #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
-                    bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
+                        #_____COLUMNAS
+                        columns=['ID','UUID','MARKET_ID','ACCOUNT_ID','TYPE','STATE','CREATED_AT','FEE_CURRENCY','PRICE_TYPE','SOURCE','LIMIT','AMOUNT','ORIGINAL_AMOUNT','TRADED_AMOUNT','TOTAL_EXCHANGED','PAID_FEE']
+
+                        #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
+                        append_order_dataframe=pd.DataFrame(askOrderDetailsFinish.json).head(1)
+                        append_order_dataframe.columns=columns
+
+                        #_____QUITAR COLUMNAS INNECESARIAS
+                        append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
+
+                        #_____DAR FORMATO A COLUMNAS
+                        append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
+                        append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
+                        append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
+                        append_order_dataframe["CREATED_AT"]=pd.to_datetime(append_order_dataframe["CREATED_AT"])
+                        append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
+                        append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
+                        append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
+                        append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
+                        append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
+                        append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
+                        append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
+                        append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
+                        append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
+                        append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
+
+                        #_____AGREGAR COLUMNAS FALTANTES
+                        append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
+                        append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
+                        append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
+                        append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
+                        append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                        append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                        append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
+                        append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=(append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"])/append_order_dataframe.at[0,"MY_TRM"]
+                        append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
+                        if append_order_dataframe.at[0,"TYPE"]=="Ask":
+                            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                        else:
+                            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                        
+                        #_____DAR FORMATO A COLUMNAS NUEVAS
+                        append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
+                        append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
+                        append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
+                        append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
+                        append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
+                        append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
+                        append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
+                        append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
+                        append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
+                        append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
+                        append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+
+                        #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
+                        bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
 
             #_____SI TENGO BIDS PENDIENTES
             if len(bidIdList)>0:
@@ -653,73 +656,74 @@ def finishThemAll():
                                     print("[ERROR]: finishThemAll() -> bidOrderDetailsFinish = client.cancel_order(i)(2)")
                                     time.sleep(sleepError)
 
-                    
+                    #_____SI EJECUTÉ PARCIAL O TOTALEMTNE LA ÓRDEN -> GUARDAR PRECIOS
+                    if (bidOrderDetailsFinish.traded_amount.amount > 0.0):
 
-                    #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
-                    bigquery_client=bigquery.Client(project="dogwood-terra-308100")
-                    dataset_ref=bigquery_client.dataset("spreadNet")
-                    table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
-                    table=dataset_ref.table(CRYPT+"_"+MONEY)
-                    table=bigquery.Table(table)
+                        #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
+                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+                        bigquery_client=bigquery.Client(project="dogwood-terra-308100")
+                        dataset_ref=bigquery_client.dataset("spreadNet")
+                        table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
+                        table=dataset_ref.table(CRYPT+"_"+MONEY)
+                        table=bigquery.Table(table)
 
-                    #_____COLUMNAS
-                    columns=['ID','UUID','MARKET_ID','ACCOUNT_ID','TYPE','STATE','CREATED_AT','FEE_CURRENCY','PRICE_TYPE','SOURCE','LIMIT','AMOUNT','ORIGINAL_AMOUNT','TRADED_AMOUNT','TOTAL_EXCHANGED','PAID_FEE']
+                        #_____COLUMNAS
+                        columns=['ID','UUID','MARKET_ID','ACCOUNT_ID','TYPE','STATE','CREATED_AT','FEE_CURRENCY','PRICE_TYPE','SOURCE','LIMIT','AMOUNT','ORIGINAL_AMOUNT','TRADED_AMOUNT','TOTAL_EXCHANGED','PAID_FEE']
 
-                    #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
-                    append_order_dataframe=pd.DataFrame(bidOrderDetailsFinish.json).head(1)
-                    append_order_dataframe.columns=columns
+                        #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
+                        append_order_dataframe=pd.DataFrame(bidOrderDetailsFinish.json).head(1)
+                        append_order_dataframe.columns=columns
 
-                    #_____QUITAR COLUMNAS INNECESARIAS
-                    append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
+                        #_____QUITAR COLUMNAS INNECESARIAS
+                        append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
 
-                    #_____DAR FORMATO A COLUMNAS
-                    append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
-                    append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
-                    append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
-                    append_order_dataframe["CREATED_AT"]=pd.to_datetime(append_order_dataframe["CREATED_AT"])
-                    append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
-                    append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
-                    append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
-                    append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
-                    append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
-                    append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
-                    append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
-                    append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
-                    append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
-                    append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
-                    
-                    #_____AGREGAR COLUMNAS FALTANTES
-                    append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
-                    append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
-                    append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
-                    append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
-                    append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-                    append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-                    append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
-                    append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=(append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"])/append_order_dataframe.at[0,"MY_TRM"]
-                    append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
-                    if append_order_dataframe.at[0,"TYPE"]=="Ask":
-                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-                    else:
-                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-                    append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                        #_____DAR FORMATO A COLUMNAS
+                        append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
+                        append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
+                        append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
+                        append_order_dataframe["CREATED_AT"]=pd.to_datetime(append_order_dataframe["CREATED_AT"])
+                        append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
+                        append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
+                        append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
+                        append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
+                        append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
+                        append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
+                        append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
+                        append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
+                        append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
+                        append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
+                        
+                        #_____AGREGAR COLUMNAS FALTANTES
+                        append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
+                        append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
+                        append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
+                        append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
+                        append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                        append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                        append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
+                        append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=(append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"])/append_order_dataframe.at[0,"MY_TRM"]
+                        append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
+                        if append_order_dataframe.at[0,"TYPE"]=="Ask":
+                            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                        else:
+                            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
 
-                    #_____DAR FORMATO A NUEVAS COLUMNAS
-                    append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
-                    append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
-                    append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
-                    append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
-                    append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
-                    append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
-                    append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
-                    append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
-                    append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
-                    append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
-                    append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+                        #_____DAR FORMATO A NUEVAS COLUMNAS
+                        append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
+                        append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
+                        append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
+                        append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
+                        append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
+                        append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
+                        append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
+                        append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
+                        append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
+                        append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
+                        append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
 
-                    #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
-                    bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
+                        #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
+                        bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
 
         balancing_Ask_Bid()
 
@@ -1025,71 +1029,74 @@ def cancelAsk():
                     except:
                         print("[[ERROR]]: cancelAsk() -> askOrderDetails = client.cancel_order(askOrderId) (2)")
         
-        #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
-        bigquery_client=bigquery.Client(project="dogwood-terra-308100")
-        dataset_ref=bigquery_client.dataset("spreadNet")
-        table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
-        table=dataset_ref.table(CRYPT+"_"+MONEY)
-        table=bigquery.Table(table)
+        #_____SI LA ORDEN SE EJECUTÓ PARCIAL O TOTALMENTE
+        if (askOrderDetails.traded_amount.amount > 0.0):
 
-        #_____ASIGNAR COLUMNAS A BASE DE DATOS DE LA ORDEN CANCELADA
-        columns=["ID","UUID","MARKET_ID","ACCOUNT_ID","TYPE","STATE","CREATED_AT","FEE_CURRENCY","PRICE_TYPE","SOURCE","LIMIT","AMOUNT","ORIGINAL_AMOUNT","TRADED_AMOUNT","TOTAL_EXCHANGED","PAID_FEE"]
-    
-        #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
-        append_order_dataframe=pd.DataFrame(askOrderDetails.json).head(1)
-        append_order_dataframe.columns=columns
+            #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+            bigquery_client=bigquery.Client(project="dogwood-terra-308100")
+            dataset_ref=bigquery_client.dataset("spreadNet")
+            table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
+            table=dataset_ref.table(CRYPT+"_"+MONEY)
+            table=bigquery.Table(table)
 
-        #_____QUITAR COLUMNAS INNECESARIAS
-        append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
-
-        #_____DAR FORMATO A COLUMNAS
-        append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
-        append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
-        append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
-        append_order_dataframe.CREATED_AT= pd.to_datetime(append_order_dataframe.CREATED_AT)
-        append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
-        append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
-        append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
-        append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
-        append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
-        append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
-        append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
-        append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
-        append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
-        append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
-
-        #_____AGREGAR COLUMNAS FALTANTES
-        append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
-        append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
-        append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
-        append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
-        append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-        append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-        append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
-        append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"]/append_order_dataframe.at[0,"MY_TRM"]
-        append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
-        if append_order_dataframe.at[0,"TYPE"]=="Ask":
-            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-        else:
-            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+            #_____ASIGNAR COLUMNAS A BASE DE DATOS DE LA ORDEN CANCELADA
+            columns=["ID","UUID","MARKET_ID","ACCOUNT_ID","TYPE","STATE","CREATED_AT","FEE_CURRENCY","PRICE_TYPE","SOURCE","LIMIT","AMOUNT","ORIGINAL_AMOUNT","TRADED_AMOUNT","TOTAL_EXCHANGED","PAID_FEE"]
         
-        #_____DAR FORMATO A NUEVAS COLUMNAS
-        append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
-        append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
-        append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
-        append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
-        append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
-        append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
-        append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
-        append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
-        append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
-        append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
-        append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+            #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
+            append_order_dataframe=pd.DataFrame(askOrderDetails.json).head(1)
+            append_order_dataframe.columns=columns
 
-        #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
-        bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
+            #_____QUITAR COLUMNAS INNECESARIAS
+            append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
+
+            #_____DAR FORMATO A COLUMNAS
+            append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
+            append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
+            append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
+            append_order_dataframe.CREATED_AT= pd.to_datetime(append_order_dataframe.CREATED_AT)
+            append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
+            append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
+            append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
+            append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
+            append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
+            append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
+            append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
+            append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
+            append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
+            append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
+
+            #_____AGREGAR COLUMNAS FALTANTES
+            append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
+            append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
+            append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
+            append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
+            append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+            append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+            append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
+            append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"]/append_order_dataframe.at[0,"MY_TRM"]
+            append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
+            if append_order_dataframe.at[0,"TYPE"]=="Ask":
+                append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+            else:
+                append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+            
+            #_____DAR FORMATO A NUEVAS COLUMNAS
+            append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
+            append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
+            append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
+            append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
+            append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
+            append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
+            append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
+            append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
+            append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
+            append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
+            append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+
+            #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
+            bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
 
         #_____ACTUALIZAR VARIABLES
         askOrderDetails=None
@@ -1181,71 +1188,74 @@ def cancelAsk():
                                         print("[ERROR]: finishThemAll() -> askOrderDetailsFinish = client.cancel_order(i)(2)")
                                         time.sleep(sleepError)
 
-                        #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
-                        bigquery_client=bigquery.Client(project="dogwood-terra-308100")
-                        dataset_ref=bigquery_client.dataset("spreadNet")
-                        table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
-                        table=dataset_ref.table(CRYPT+"_"+MONEY)
-                        table=bigquery.Table(table)
+                        #_____SI EJECUTÉ PARCIAL O TOTALEMTNE LA ÓRDEN -> GUARDAR PRECIOS
+                        if (askOrderDetailsFinish.traded_amount.amount > 0.0):
 
-                        #_____COLUMNAS
-                        columns=["ID","UUID","MARKET_ID","ACCOUNT_ID","TYPE","STATE","CREATED_AT","FEE_CURRENCY","PRICE_TYPE","SOURCE","LIMIT","AMOUNT","ORIGINAL_AMOUNT","TRADED_AMOUNT","TOTAL_EXCHANGED","PAID_FEE"]
-    
-                        #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
-                        append_order_dataframe=pd.DataFrame(askOrderDetails.json).head(1)
-                        append_order_dataframe.columns=columns
+                            #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
+                            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+                            bigquery_client=bigquery.Client(project="dogwood-terra-308100")
+                            dataset_ref=bigquery_client.dataset("spreadNet")
+                            table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
+                            table=dataset_ref.table(CRYPT+"_"+MONEY)
+                            table=bigquery.Table(table)
 
-                        #_____QUITAR COLUMNAS INNECESARIAS
-                        append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
+                            #_____COLUMNAS
+                            columns=["ID","UUID","MARKET_ID","ACCOUNT_ID","TYPE","STATE","CREATED_AT","FEE_CURRENCY","PRICE_TYPE","SOURCE","LIMIT","AMOUNT","ORIGINAL_AMOUNT","TRADED_AMOUNT","TOTAL_EXCHANGED","PAID_FEE"]
+        
+                            #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
+                            append_order_dataframe=pd.DataFrame(askOrderDetails.json).head(1)
+                            append_order_dataframe.columns=columns
 
-                        #_____DAR FORMATO A COLUMNAS
-                        append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
-                        append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
-                        append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
-                        append_order_dataframe["CREATED_AT"]=pd.to_datetime(append_order_dataframe["CREATED_AT"])
-                        append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
-                        append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
-                        append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
-                        append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
-                        append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
-                        append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
-                        append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
-                        append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
-                        append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
-                        append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
+                            #_____QUITAR COLUMNAS INNECESARIAS
+                            append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
 
-                        #_____AGREGAR COLUMNAS FALTANTES
-                        append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
-                        append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
-                        append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
-                        append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
-                        append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-                        append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-                        append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
-                        append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=(append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"])/append_order_dataframe.at[0,"MY_TRM"]
-                        append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
-                        if append_order_dataframe.at[0,"TYPE"]=="Ask":
-                            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-                        else:
-                            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                            #_____DAR FORMATO A COLUMNAS
+                            append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
+                            append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
+                            append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
+                            append_order_dataframe["CREATED_AT"]=pd.to_datetime(append_order_dataframe["CREATED_AT"])
+                            append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
+                            append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
+                            append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
+                            append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
+                            append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
+                            append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
+                            append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
+                            append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
+                            append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
+                            append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
 
-                        #_____DAR FORMATO A COLUMNAS NUEVAS
-                        append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
-                        append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
-                        append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
-                        append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
-                        append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
-                        append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
-                        append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
-                        append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
-                        append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
-                        append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
-                        append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+                            #_____AGREGAR COLUMNAS FALTANTES
+                            append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
+                            append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
+                            append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
+                            append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
+                            append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                            append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                            append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
+                            append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=(append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"])/append_order_dataframe.at[0,"MY_TRM"]
+                            append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
+                            if append_order_dataframe.at[0,"TYPE"]=="Ask":
+                                append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                            else:
+                                append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
 
-                        #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
-                        bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
+                            #_____DAR FORMATO A COLUMNAS NUEVAS
+                            append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
+                            append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
+                            append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
+                            append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
+                            append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
+                            append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
+                            append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
+                            append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
+                            append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
+                            append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
+                            append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+
+                            #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
+                            bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
 
     #_____PRINT
     print("CANCELO ASK")
@@ -1386,71 +1396,74 @@ def cancelBid():
                     except:
                         print("[[ERROR]]: cancelBid() -> bidOrderDetails = client.cancel_order(bidOrderId) (2)")
         
-        #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
-        bigquery_client=bigquery.Client(project="dogwood-terra-308100")
-        dataset_ref=bigquery_client.dataset("spreadNet")
-        table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
-        table=dataset_ref.table(CRYPT+"_"+MONEY)
-        table=bigquery.Table(table)
+        #_____SI LA ORDEN SE EJECUTÓ PARCIAL O TOTALMENTE
+        if (bidOrderDetails.traded_amount.amount > 0.0):
 
-        #_____ASIGNAR COLUMNAS A BASE DE DATOS DE LA ORDEN CANCELADA
-        columns=["ID","UUID","MARKET_ID","ACCOUNT_ID","TYPE","STATE","CREATED_AT","FEE_CURRENCY","PRICE_TYPE","SOURCE","LIMIT","AMOUNT","ORIGINAL_AMOUNT","TRADED_AMOUNT","TOTAL_EXCHANGED","PAID_FEE"]
-    
-        #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
-        append_order_dataframe=pd.DataFrame(bidOrderDetails.json).head(1)
-        append_order_dataframe.columns=columns
+            #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+            bigquery_client=bigquery.Client(project="dogwood-terra-308100")
+            dataset_ref=bigquery_client.dataset("spreadNet")
+            table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
+            table=dataset_ref.table(CRYPT+"_"+MONEY)
+            table=bigquery.Table(table)
 
-        #_____QUITAR COLUMNAS INNECESARIAS
-        append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
+            #_____ASIGNAR COLUMNAS A BASE DE DATOS DE LA ORDEN CANCELADA
+            columns=["ID","UUID","MARKET_ID","ACCOUNT_ID","TYPE","STATE","CREATED_AT","FEE_CURRENCY","PRICE_TYPE","SOURCE","LIMIT","AMOUNT","ORIGINAL_AMOUNT","TRADED_AMOUNT","TOTAL_EXCHANGED","PAID_FEE"]
+        
+            #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
+            append_order_dataframe=pd.DataFrame(bidOrderDetails.json).head(1)
+            append_order_dataframe.columns=columns
 
-        #_____DAR FORMATO A COLUMNAS
-        append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
-        append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
-        append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
-        append_order_dataframe["CREATED_AT"]=pd.to_datetime(append_order_dataframe["CREATED_AT"])
-        append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
-        append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
-        append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
-        append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
-        append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
-        append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
-        append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
-        append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
-        append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
-        append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
+            #_____QUITAR COLUMNAS INNECESARIAS
+            append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
 
-        #_____AGREGAR COLUMNAS FALTANTES
-        append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
-        append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
-        append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
-        append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
-        append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-        append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-        append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
-        append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"]/append_order_dataframe.at[0,"MY_TRM"]
-        append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
-        if append_order_dataframe.at[0,"TYPE"]=="Ask":
-            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-        else:
-            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+            #_____DAR FORMATO A COLUMNAS
+            append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
+            append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
+            append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
+            append_order_dataframe["CREATED_AT"]=pd.to_datetime(append_order_dataframe["CREATED_AT"])
+            append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
+            append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
+            append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
+            append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
+            append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
+            append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
+            append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
+            append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
+            append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
+            append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
 
-        #_____DAR FORMATO A COLUMNAS NUEVAS
-        append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
-        append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
-        append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
-        append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
-        append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
-        append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
-        append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
-        append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
-        append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
-        append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
-        append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+            #_____AGREGAR COLUMNAS FALTANTES
+            append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
+            append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
+            append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
+            append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
+            append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+            append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+            append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
+            append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"]/append_order_dataframe.at[0,"MY_TRM"]
+            append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
+            if append_order_dataframe.at[0,"TYPE"]=="Ask":
+                append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+            else:
+                append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
 
-        #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
-        bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
+            #_____DAR FORMATO A COLUMNAS NUEVAS
+            append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
+            append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
+            append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
+            append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
+            append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
+            append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
+            append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
+            append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
+            append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
+            append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
+            append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+
+            #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
+            bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
 
         #_____ACTUALIZAR VARIABLES
         bidOrderDetails=None
@@ -1542,71 +1555,74 @@ def cancelBid():
                                         print("[ERROR]: finishThemAll() -> bidOrderDetailsFinish = client.cancel_order(i)(2)")
                                         time.sleep(sleepError)
 
-                        #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
-                        bigquery_client=bigquery.Client(project="dogwood-terra-308100")
-                        dataset_ref=bigquery_client.dataset("spreadNet")
-                        table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
-                        table=dataset_ref.table(CRYPT+"_"+MONEY)
-                        table=bigquery.Table(table)
+                        #_____SI LA ORDEN SE EJECUTÓ PARCIAL O TOTALMENTE
+                        if (bidOrderDetails.traded_amount.amount > 0.0):
 
-                        #_____COLUMNAS
-                        columns=["ID","UUID","MARKET_ID","ACCOUNT_ID","TYPE","STATE","CREATED_AT","FEE_CURRENCY","PRICE_TYPE","SOURCE","LIMIT","AMOUNT","ORIGINAL_AMOUNT","TRADED_AMOUNT","TOTAL_EXCHANGED","PAID_FEE"]
-    
-                        #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
-                        append_order_dataframe=pd.DataFrame(askOrderDetails.json).head(1)
-                        append_order_dataframe.columns=columns
+                            #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
+                            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+                            bigquery_client=bigquery.Client(project="dogwood-terra-308100")
+                            dataset_ref=bigquery_client.dataset("spreadNet")
+                            table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
+                            table=dataset_ref.table(CRYPT+"_"+MONEY)
+                            table=bigquery.Table(table)
 
-                        #_____QUITAR COLUMNAS INNECESARIAS
-                        append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
+                            #_____COLUMNAS
+                            columns=["ID","UUID","MARKET_ID","ACCOUNT_ID","TYPE","STATE","CREATED_AT","FEE_CURRENCY","PRICE_TYPE","SOURCE","LIMIT","AMOUNT","ORIGINAL_AMOUNT","TRADED_AMOUNT","TOTAL_EXCHANGED","PAID_FEE"]
+        
+                            #_____CREAR BASE DE DATOS PARA REGISTRO DE ORDEN
+                            append_order_dataframe=pd.DataFrame(askOrderDetails.json).head(1)
+                            append_order_dataframe.columns=columns
 
-                        #_____DAR FORMATO A COLUMNAS
-                        append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
-                        append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
-                        append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
-                        append_order_dataframe["CREATED_AT"]=pd.to_datetime(append_order_dataframe["CREATED_AT"])
-                        append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
-                        append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
-                        append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
-                        append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
-                        append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
-                        append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
-                        append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
-                        append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
-                        append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
-                        append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
+                            #_____QUITAR COLUMNAS INNECESARIAS
+                            append_order_dataframe=append_order_dataframe[["ID","ACCOUNT_ID","AMOUNT","CREATED_AT","FEE_CURRENCY","LIMIT","MARKET_ID","ORIGINAL_AMOUNT","PAID_FEE","PRICE_TYPE","STATE","TOTAL_EXCHANGED","TRADED_AMOUNT","TYPE"]]
 
-                        #_____AGREGAR COLUMNAS FALTANTES
-                        append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
-                        append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
-                        append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
-                        append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
-                        append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-                        append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
-                        append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
-                        append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=(append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"])/append_order_dataframe.at[0,"MY_TRM"]
-                        append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
-                        if append_order_dataframe.at[0,"TYPE"]=="Ask":
-                            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-                        else:
-                            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
-                        append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                            #_____DAR FORMATO A COLUMNAS
+                            append_order_dataframe.ID=append_order_dataframe.ID.astype(str)
+                            append_order_dataframe.ACCOUNT_ID=append_order_dataframe.ACCOUNT_ID.astype(str)
+                            append_order_dataframe.AMOUNT=append_order_dataframe.AMOUNT.astype(float)
+                            append_order_dataframe["CREATED_AT"]=pd.to_datetime(append_order_dataframe["CREATED_AT"])
+                            append_order_dataframe.FEE_CURRENCY=append_order_dataframe.FEE_CURRENCY.astype(str)
+                            append_order_dataframe.LIMIT=append_order_dataframe.LIMIT.astype(float)
+                            append_order_dataframe.MARKET_ID=append_order_dataframe.MARKET_ID.astype(str)
+                            append_order_dataframe.ORIGINAL_AMOUNT=append_order_dataframe.ORIGINAL_AMOUNT.astype(float)
+                            append_order_dataframe.PAID_FEE=append_order_dataframe.PAID_FEE.astype(float)
+                            append_order_dataframe.PRICE_TYPE=append_order_dataframe.PRICE_TYPE.astype(str)
+                            append_order_dataframe.STATE=append_order_dataframe.STATE.astype(str)
+                            append_order_dataframe.TOTAL_EXCHANGED=append_order_dataframe.TOTAL_EXCHANGED.astype(float)
+                            append_order_dataframe.TRADED_AMOUNT=append_order_dataframe.TRADED_AMOUNT.astype(float)
+                            append_order_dataframe.TYPE=append_order_dataframe.TYPE.astype(str)
 
-                        #_____DAR FORMATO A COLUMNAS NUEVAS
-                        append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
-                        append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
-                        append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
-                        append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
-                        append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
-                        append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
-                        append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
-                        append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
-                        append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
-                        append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
-                        append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+                            #_____AGREGAR COLUMNAS FALTANTES
+                            append_order_dataframe.at[0,"MY_CRYPTO"]=getCRYinAccount()
+                            append_order_dataframe.at[0,"MY_FIAT"]=getMONinAccount()
+                            append_order_dataframe.at[0,"MY_TRM"]=getFiatUsdQuote(MONEY)
+                            append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]=append_order_dataframe.at[0,"MY_CRYPTO"]*append_order_dataframe.at[0,"LIMIT"]
+                            append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                            append_order_dataframe.at[0,"MY_FIAT_IN_USD"]=append_order_dataframe.at[0,"MY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
+                            append_order_dataframe.at[0,"MY_MARKET_USD"]=append_order_dataframe.at[0,"MY_CRYPTO_IN_USD"]+append_order_dataframe.at[0,"MY_FIAT_IN_USD"]
+                            append_order_dataframe.at[0,"ORIGINAL_AMOUNT_USD"]=(append_order_dataframe.at[0,"ORIGINAL_AMOUNT"]*append_order_dataframe.at[0,"LIMIT"])/append_order_dataframe.at[0,"MY_TRM"]
+                            append_order_dataframe.at[0,"MY_EXECUTED_AMOUNT_USD"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]/append_order_dataframe.at[0,"MY_TRM"]
+                            if append_order_dataframe.at[0,"TYPE"]=="Ask":
+                                append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                            else:
+                                append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]=-append_order_dataframe.at[0,"TOTAL_EXCHANGED"]
+                            append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_USD"]=append_order_dataframe.at[0,"MY_OPERATIONAL_UTILITY_FIAT"]/append_order_dataframe.at[0,"MY_TRM"]
 
-                        #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
-                        bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
+                            #_____DAR FORMATO A COLUMNAS NUEVAS
+                            append_order_dataframe.MY_CRYPTO=append_order_dataframe.MY_CRYPTO.astype(float)
+                            append_order_dataframe.MY_FIAT=append_order_dataframe.MY_FIAT.astype(float)
+                            append_order_dataframe.MY_TRM=append_order_dataframe.MY_TRM.astype(float)
+                            append_order_dataframe.MY_CRYPTO_IN_FIAT=append_order_dataframe.MY_CRYPTO_IN_FIAT.astype(float)
+                            append_order_dataframe.MY_CRYPTO_IN_USD=append_order_dataframe.MY_CRYPTO_IN_USD.astype(float)
+                            append_order_dataframe.MY_FIAT_IN_USD=append_order_dataframe.MY_FIAT_IN_USD.astype(float)
+                            append_order_dataframe.MY_MARKET_USD=append_order_dataframe.MY_MARKET_USD.astype(float)
+                            append_order_dataframe.ORIGINAL_AMOUNT_USD=append_order_dataframe.ORIGINAL_AMOUNT_USD.astype(float)
+                            append_order_dataframe.MY_EXECUTED_AMOUNT_USD=append_order_dataframe.MY_EXECUTED_AMOUNT_USD.astype(float)
+                            append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT=append_order_dataframe.MY_OPERATIONAL_UTILITY_FIAT.astype(float)
+                            append_order_dataframe.MY_OPERATIONAL_UTILITY_USD=append_order_dataframe.MY_OPERATIONAL_UTILITY_USD.astype(float)
+
+                            #_____SUBIR FILAS FALTANTES A GOOGLE CLOUD
+                            bigquery_client.insert_rows(bigquery_client.get_table(table_ref), append_order_dataframe.values.tolist())
 
     #_____PRINT
     print("CANCELO BID")
