@@ -1651,13 +1651,23 @@ def createBid(limitBidPrice):
     cancelBid()
     
     #_____ACTUALIZAR SALDO CRYPTO EN LA CUENTA
-    amountCRY = getCRYinAccount()
+    myActualMoney = getMONinAccount()
+
+    #_____SIMULAR COMPRA CON PLATA QUE TENGO
+    while True:
+        try:
+            buyQuotation=client.quotation_market(amount=myActualMoney,quotation_type="bid_given_value",market_id=CRYPT.lower()+"-"+MONEY.lower())
+            buyQuotation=buyQuotation.base_balance_change[0]
+            break
+        except:
+            print("[ERROR]: createBid(limitBidPrice) - simulation")
+            time.sleep(sleepError)
     
     #_____SI CANTIDAD DE CRYPTO SUPERA EL MÍNIMO VOLUMEN DE TRANSACCIÓN
     if round_decimals_down(bidVolume,marketDecimals) >= minVolumeTrade:
         
         #_____SI EL SALDO DE CRYPTO SUPERA EL VOLUMEN IDEAL DE TRANSACCIÓN
-        if (amountCRY >= bidVolume):
+        if (buyQuotation >= bidVolume):
             amountBid = bidVolume
 
             time.sleep(sleepApis)
@@ -1683,7 +1693,7 @@ def createBid(limitBidPrice):
         else:
             print("[[ERROR]]: createBid(limitBidPrice) -> warning: no tengo los recursos suficientes")
             subject = "SpreadNet: WARNING"
-            msg = "[[ERROR]]: createBid(limitBidPrice) -> warning: no tengo los recursos suficientes<br><br>My Money: <b>${}</b><br><br>My Crypt: <b>{}</b>".format(round(getMONinAccount(),2),round(amountCRY,4))
+            msg = "[[ERROR]]: createBid(limitBidPrice) -> warning: no tengo los recursos suficientes<br><br>My Money: <b>${}</b><br><br>My Crypt: <b>{}</b>".format(round(getMONinAccount(),2),round(buyQuotation,4))
             load_dotenv("spreadNet.env")
             owners_warning = os.getenv('owners_warning')
             owners_warning = json.loads(owners_warning)
@@ -2017,13 +2027,13 @@ try:
 except Exception as e:
     
     finishThemAll()
-    shutDownMarket(CRYPT,MONEY)
-    subject = "SpreadNet: SHUTDOWN"
-    msg = "MARKET: {} is OFF <br><br> {}".format(MONEY.upper()+"_"+CRYPT.upper(),e)
-    load_dotenv("spreadNet.env")
-    owners_warning = os.getenv('owners_warning')
-    owners_warning = json.loads(owners_warning)
-    enviar_alerta(subject, msg, owners_warning)
+    # shutDownMarket(CRYPT,MONEY)
+    # subject = "SpreadNet: SHUTDOWN"
+    # msg = "MARKET: {} is OFF <br><br> {}".format(MONEY.upper()+"_"+CRYPT.upper(),e)
+    # load_dotenv("spreadNet.env")
+    # owners_warning = os.getenv('owners_warning')
+    # owners_warning = json.loads(owners_warning)
+    # enviar_alerta(subject, msg, owners_warning)
     print(e)
 
 #_____ESPERA POR ERROR
