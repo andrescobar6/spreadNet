@@ -13,7 +13,7 @@ marketDecimals=2
 sleepErrorApis=10
 tradeProportion=0.8
 minVolumeTrade=0.01
-utilityMarginThreshold=0.001
+utilityMarginThreshold=0.0
 maxTradingVolumeProportion=0.8
 
 #_____LIBRERÍAS
@@ -187,7 +187,7 @@ def getMONinAccount():
 # ACTUALIZA TAZA DE CAMBIO DE MERCADOS A USD
 def getFiatUsdQuote(fiat):
     
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_or_name="marketmaker")
     fiatQuotes=bucket.get_blob(blob_name="fiatQuotes.txt")
@@ -198,7 +198,7 @@ def getFiatUsdQuote(fiat):
 # SHUTDOWN MARKET
 def shutDownMarket(CRYPT,MONEY):
 
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_or_name="marketmaker")
     marketControl=bucket.get_blob(blob_name="marketControl.txt")
@@ -216,7 +216,7 @@ def shutDownMarket(CRYPT,MONEY):
 # ON/OFF MARKET
 def getOnOffMarket(CRYPT,MONEY):
     
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_or_name="marketmaker")
     marketControl=bucket.get_blob(blob_name="marketControl.txt")
@@ -232,6 +232,7 @@ def updatePast_Asks_Bids():
     global pastAsks
     global pastBids
     global sleepError
+    global marketDecimals
     global database_past_asks_bids
 
     pastAsks=0.0
@@ -239,7 +240,7 @@ def updatePast_Asks_Bids():
 
     while True:
         try:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
             database_past_asks_bids=gbq.read_gbq("SELECT * FROM [dogwood-terra-308100:spreadNet."+CRYPT+"_"+MONEY+"] ORDER BY CREATED_AT DESC",project_id="dogwood-terra-308100",dialect="legacy")
             break
         except:
@@ -291,8 +292,8 @@ def updatePast_Asks_Bids():
                                     ((database_past_asks_bids['STATE'] == "canceled")|
                                     (database_past_asks_bids['STATE'] == "traded")), 'TRADED_AMOUNT'].sum()
 
-        pastAsks=round_decimals_down(pastAsks,5)
-        pastBids=round_decimals_down(pastBids,5)
+        pastAsks=round_decimals_down(pastAsks,marketDecimals)
+        pastBids=round_decimals_down(pastBids,marketDecimals)
 
 # ME DICE EL VOLUMEN QUE DEBO PONER
 def history_trades():
@@ -305,6 +306,7 @@ def history_trades():
     global sleepApis
     global sleepError
     global minVolumeTrade
+    global marketDecimals
     global maxTradingVolumeProportion
 
     updatePast_Asks_Bids()
@@ -336,7 +338,7 @@ def history_trades():
     else:
         recomendedVolume=abs(pastAsks-pastBids)
 
-    return round_decimals_down(recomendedVolume,5)
+    return round_decimals_down(recomendedVolume,marketDecimals)
 
 # ACTUALIZO BASE DE DATOS + BALANCEO + ACTUALIZAR FIAT + CRYPTO DISPONIBLES
 def balancing_Ask_Bid():
@@ -349,6 +351,7 @@ def balancing_Ask_Bid():
     global askVolume
     global bidVolume
     global owners_warning
+    global marketDecimals
     
     volume=history_trades()
     
@@ -356,26 +359,26 @@ def balancing_Ask_Bid():
         askVolume=volume
         bidVolume=volume
     elif pastAsks<pastBids:
-        if (round_decimals_down(pastBids-pastAsks,5)>volume):
+        if (round_decimals_down(pastBids-pastAsks,marketDecimals)>volume):
             subject = "SpreadNet: WARNING"
-            msg = "[[ERROR]]: balancing_Ask_Bid() -> if (round_decimals_down(pastBids-pastAsks,5)>volume)"
-            load_dotenv("spreadNet.env")
+            msg = "[[ERROR]]: balancing_Ask_Bid() -> if (round_decimals_down(pastBids-pastAsks,marketDecimals)>volume)"
+            load_dotenv("/var/run/secrets/spreadNet.env")
             owners_warning = os.getenv('owners_warning')
             owners_warning = json.loads(owners_warning)
             enviar_alerta(subject, msg, owners_warning)
         else:
-            askVolume=round_decimals_down(pastBids-pastAsks,5) if (pastBids-pastAsks>=minVolumeTrade) else 0.0
+            askVolume=round_decimals_down(pastBids-pastAsks,marketDecimals) if (pastBids-pastAsks>=minVolumeTrade) else 0.0
             bidVolume=0.0
     elif pastAsks>pastBids:
-        if (round_decimals_down(pastAsks-pastBids,5)>volume):
+        if (round_decimals_down(pastAsks-pastBids,marketDecimals)>volume):
             subject = "SpreadNet: WARNING"
-            msg = "[[ERROR]]: balancing_Ask_Bid() -> if (round_decimals_down(pastBids-pastAsks,5)>volume)"
-            load_dotenv("spreadNet.env")
+            msg = "[[ERROR]]: balancing_Ask_Bid() -> if (round_decimals_down(pastBids-pastAsks,marketDecimals)>volume)"
+            load_dotenv("/var/run/secrets/spreadNet.env")
             owners_warning = os.getenv('owners_warning')
             owners_warning = json.loads(owners_warning)
             enviar_alerta(subject, msg, owners_warning)
         else:
-            bidVolume=round_decimals_down(pastAsks-pastBids,5) if (pastAsks-pastBids>=minVolumeTrade) else 0.0
+            bidVolume=round_decimals_down(pastAsks-pastBids,marketDecimals) if (pastAsks-pastBids>=minVolumeTrade) else 0.0
             askVolume=0.0
 
 # ESCRIBIR BASE DE DATOS DE TRANSACCIONES EN BIGQUERY
@@ -391,7 +394,7 @@ def write_buy_sell_prices():
                                 "theoryBuyExecuted": theoryBuyExecuted}
 
     #_____CREAR CONEXIÓN CON GOOGLE CLOUD
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="gcp_json.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_or_name="marketmaker")
     
@@ -407,7 +410,7 @@ def read_buy_sell_prices():
     global theorySellExecuted
     global theoryBuyExecuted
     
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="gcp_json.json"
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_or_name="marketmaker")
 
@@ -533,7 +536,7 @@ def finishThemAll():
                     if (askOrderDetailsFinish.traded_amount.amount > 0.0):
                     
                         #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
                         bigquery_client=bigquery.Client(project="dogwood-terra-308100")
                         dataset_ref=bigquery_client.dataset("spreadNet")
                         table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
@@ -660,7 +663,7 @@ def finishThemAll():
                     if (bidOrderDetailsFinish.traded_amount.amount > 0.0):
 
                         #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+                        os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
                         bigquery_client=bigquery.Client(project="dogwood-terra-308100")
                         dataset_ref=bigquery_client.dataset("spreadNet")
                         table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
@@ -1033,7 +1036,7 @@ def cancelAsk():
         if (askOrderDetails.traded_amount.amount > 0.0):
 
             #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
             bigquery_client=bigquery.Client(project="dogwood-terra-308100")
             dataset_ref=bigquery_client.dataset("spreadNet")
             table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
@@ -1192,7 +1195,7 @@ def cancelAsk():
                         if (askOrderDetailsFinish.traded_amount.amount > 0.0):
 
                             #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-                            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+                            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
                             bigquery_client=bigquery.Client(project="dogwood-terra-308100")
                             dataset_ref=bigquery_client.dataset("spreadNet")
                             table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
@@ -1317,7 +1320,7 @@ def createAsk(limitAskPrice):
             print("[[ERROR]]: createAsk(limitAskPrice) -> warning: no tengo los recursos suficientes")
             subject = "SpreadNet: WARNING"
             msg = "[[ERROR]]: createAsk(limitAskPrice) -> warning: no tengo los recursos suficientes<br><br>My Money: <b>${}</b><br><br>My Crypt: <b>{}</b>".format(round(getMONinAccount(),2),round(amountCRY,4))
-            load_dotenv("spreadNet.env")
+            load_dotenv("/var/run/secrets/spreadNet.env")
             owners_warning = os.getenv('owners_warning')
             owners_warning = json.loads(owners_warning)
             enviar_alerta(subject, msg, owners_warning)
@@ -1400,7 +1403,7 @@ def cancelBid():
         if (bidOrderDetails.traded_amount.amount > 0.0):
 
             #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
             bigquery_client=bigquery.Client(project="dogwood-terra-308100")
             dataset_ref=bigquery_client.dataset("spreadNet")
             table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
@@ -1559,7 +1562,7 @@ def cancelBid():
                         if (bidOrderDetails.traded_amount.amount > 0.0):
 
                             #_____CREAR CONEXIÓN CON BASE DE DATOS EN BIGQUERY
-                            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]='gcp_json.json'
+                            os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
                             bigquery_client=bigquery.Client(project="dogwood-terra-308100")
                             dataset_ref=bigquery_client.dataset("spreadNet")
                             table_ref=dataset_ref.table(CRYPT+"_"+MONEY)
@@ -1694,7 +1697,7 @@ def createBid(limitBidPrice):
             print("[[ERROR]]: createBid(limitBidPrice) -> warning: no tengo los recursos suficientes")
             subject = "SpreadNet: WARNING"
             msg = "[[ERROR]]: createBid(limitBidPrice) -> warning: no tengo los recursos suficientes<br><br>My Money: <b>${}</b><br><br>My Crypt: <b>{}</b>".format(round(getMONinAccount(),2),round(buyQuotation,4))
-            load_dotenv("spreadNet.env")
+            load_dotenv("/var/run/secrets/spreadNet.env")
             owners_warning = os.getenv('owners_warning')
             owners_warning = json.loads(owners_warning)
             enviar_alerta(subject, msg, owners_warning)
@@ -1733,7 +1736,7 @@ newPreLimitAskPrice = 0.0
 newPreLimitBidPrice = 0.0
 
 #_____VARIABLES DE ENTORNO
-load_dotenv("spreadNet.env")
+load_dotenv("/var/run/secrets/spreadNet.env")
 
 API_KEY=os.getenv('API_KEY')
 API_SECRET=os.getenv('API_SECRET')
@@ -2030,7 +2033,7 @@ except Exception as e:
     # shutDownMarket(CRYPT,MONEY)
     # subject = "SpreadNet: SHUTDOWN"
     # msg = "MARKET: {} is OFF <br><br> {}".format(MONEY.upper()+"_"+CRYPT.upper(),e)
-    # load_dotenv("spreadNet.env")
+    # load_dotenv("/var/run/secrets/spreadNet.env")
     # owners_warning = os.getenv('owners_warning')
     # owners_warning = json.loads(owners_warning)
     # enviar_alerta(subject, msg, owners_warning)
