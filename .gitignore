@@ -4,3 +4,5 @@
 *.json
 *checkpoint.ipynb
 .ipynb_checkpoints
+gcp-geeke-develop-bots.json
+**/.DS_Store

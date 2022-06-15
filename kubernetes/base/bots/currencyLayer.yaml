@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: currencylayer
+  labels:
+    app: currencylayer
+    run: currencylayer
+spec:
+  concurrencyPolicy: Replace
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 5
+      completions: 1
+      parallelism: 1
+      template:
+        spec:
+          containers:
+            - name: currencylayer
+              imagePullPolicy: Always
+              image: gcr.io/PROJECT_ID/IMAGE:TAG
+              command: ["python", "./currencyLayer.py"]
+              volumeMounts:
+                - name: config-volume
+                  mountPath: /etc/config
+                - name: currencylayer-secrets
+                  mountPath: /var/run/secrets
+          volumes:
+            - name: config-volume
+              configMap:
+                name: google-credentials
+            - name: currencylayer-secrets
+              secret:
+                secretName: currencylayer-kubernetes-secrets
+          restartPolicy: OnFailure
+      ttlSecondsAfterFinished: 100
+  schedule: '0 */9 * * *'
+  successfulJobsHistoryLimit: 3

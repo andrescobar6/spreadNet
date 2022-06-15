@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spreadnet-cop-btc-backend
+  labels:
+    app: spreadnet-cop-btc-backend
+    run: spreadnet-cop-btc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spreadnet-cop-btc-backend
+  template:
+    metadata:
+      labels:
+        app: spreadnet-cop-btc-backend
+        run: spreadnet-cop-btc
+    spec:
+      containers:
+        - name: spreadnet-cop-btc-backend
+          imagePullPolicy: Always
+          image: gcr.io/PROJECT_ID/IMAGE:TAG
+          command: ["python", "./spreadNet_COP_BTC.py"]
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
+            - name: spreadnet-secrets
+              mountPath: /var/run/secrets
+      volumes:
+        - name: config-volume
+          configMap:
+            name: google-credentials
+        - name: spreadnet-secrets
+          secret:
+            secretName: spreadnet-kubernetes-secrets

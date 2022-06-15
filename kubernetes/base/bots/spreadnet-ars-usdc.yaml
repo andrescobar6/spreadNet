@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spreadnet-ars-usdc-backend
+  labels:
+    app: spreadnet-ars-usdc-backend
+    run: spreadnet-ars-usdc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spreadnet-ars-usdc-backend
+  template:
+    metadata:
+      labels:
+        app: spreadnet-ars-usdc-backend
+        run: spreadnet-ars-usdc
+    spec:
+      containers:
+        - name: spreadnet-ars-usdc-backend
+          imagePullPolicy: Always
+          image: gcr.io/PROJECT_ID/IMAGE:TAG
+          command: ["python", "./spreadNet_ARS_USDC.py"]
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/config
+            - name: spreadnet-secrets
+              mountPath: /var/run/secrets
+      volumes:
+        - name: config-volume
+          configMap:
+            name: google-credentials
+        - name: spreadnet-secrets
+          secret:
+            secretName: spreadnet-kubernetes-secrets

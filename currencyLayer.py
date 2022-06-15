@@ -3,8 +3,20 @@ import requests
 import pandas as pd
 from dotenv import load_dotenv
 from google.cloud import storage
+import logging
+import sys
 
-load_dotenv("currencyLayer.env")
+root = logging.getLogger()
+root.setLevel(logging.DEBUG)
+
+logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+root.addHandler(handler)
+
+load_dotenv("/var/run/secrets/currencyLayer.env")
 access_key = os.getenv('API_CURRENCYLAYER')
 
 #_____
@@ -19,7 +31,7 @@ headers = {
 }
 response = requests.get(url, params=headers)
 response = response.json()
-
+print(response)
 #_____
 
 response=pd.DataFrame(response)
@@ -33,7 +45,7 @@ response=response.to_dict()
 
 #_____
 
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="gcp_json.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="/etc/config/gcp_json.json"
 storage_client = storage.Client()
 bucket = storage_client.get_bucket(bucket_or_name="marketmaker")
 
